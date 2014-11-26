@@ -13,6 +13,8 @@
 /phpBB/images/ranks/*
 /phpBB/language/*
 !/phpBB/language/en
+!/phpBB/language/de
+!/phpBB/language/de_x_sie
 /phpBB/store/*
 /phpBB/styles/*
 !/phpBB/styles/prosilver
