@@ -159,7 +159,7 @@ function insert_text(text, spaces, popup) {
 /**
 * Add inline attachment at position
 */
-function attach_inline(index, filename) {
+function attachInline(index, filename) {
 	insert_text('[attachment=' + index + ']' + filename + '[/attachment]');
 	document.forms[form_name].elements[text_name].focus();
 }
@@ -266,10 +266,6 @@ function mozWrap(txtarea, open, close) {
 	var selEnd = txtarea.selectionEnd;
 	var scrollTop = txtarea.scrollTop;
 
-	if (selEnd === 1 || selEnd === 2) {
-		selEnd = selLength;
-	}
-
 	var s1 = (txtarea.value).substring(0,selStart);
 	var s2 = (txtarea.value).substring(selStart, selEnd);
 	var s3 = (txtarea.value).substring(selEnd, selLength);
@@ -359,6 +355,9 @@ function getCaretPosition(txtarea) {
 		textarea = doc.forms[form_name].elements[text_name];
 
 		phpbb.applyCodeEditor(textarea);
+		if ($('#attach-panel').length) {
+			phpbb.showDragNDrop(textarea);
+		}
 	});
 })(jQuery);
 

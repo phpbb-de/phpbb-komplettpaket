@@ -28,15 +28,16 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 
 		global $phpbb_dispatcher;
 
-		$phpbb_dispatcher = new phpbb_mock_event_dispatcher;
-		$this->user = $this->getMock('\phpbb\user');
+		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
+		$this->user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
 		$this->user->expects($this->any())
 			->method('lang')
 			->will($this->returnCallback(array($this, 'return_callback_implode')));
 
+		$filesystem = new \phpbb\filesystem();
 		$manager = new phpbb_mock_extension_manager(dirname(__FILE__) . '/', array());
 		$finder = new \phpbb\finder(
-			new \phpbb\filesystem(),
+			$filesystem,
 			dirname(__FILE__) . '/',
 			new phpbb_mock_cache()
 		);
@@ -46,8 +47,18 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$provider = new \phpbb\controller\provider();
 		$provider->find_routing_files($finder);
 		$provider->find(dirname(__FILE__) . '/');
-		$this->helper = new phpbb_mock_controller_helper($this->template, $this->user, $this->config, $provider, $manager, '', 'php', dirname(__FILE__) . '/');
-		$this->pagination = new \phpbb\pagination($this->template, $this->user, $this->helper);
+
+		$request = new phpbb_mock_request();
+		$request->overwrite('SCRIPT_NAME', '/app.php', \phpbb\request\request_interface::SERVER);
+		$request->overwrite('SCRIPT_FILENAME', 'app.php', \phpbb\request\request_interface::SERVER);
+		$request->overwrite('REQUEST_URI', '/app.php', \phpbb\request\request_interface::SERVER);
+
+		$symfony_request = new \phpbb\symfony_request(
+			$request
+		);
+
+		$this->helper = new phpbb_mock_controller_helper($this->template, $this->user, $this->config, $provider, $manager, $symfony_request, $request, $filesystem, '', 'php', dirname(__FILE__) . '/');
+		$this->pagination = new \phpbb\pagination($this->template, $this->user, $this->helper, $phpbb_dispatcher);
 	}
 
 	public function generate_template_pagination_data()
@@ -110,17 +121,17 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 				:per_page:10
 				:current_page:2
 				:base_url:
-				:previous::test
-				:else:1:test
-				:current:2:test/page/2
-				:else:3:test/page/3
-				:else:4:test/page/4
-				:else:5:test/page/5
-				:ellipsis:9:test/page/9
-				:else:10:test/page/10
-				:next::test/page/3
-				:u_prev:test
-				:u_next:test/page/3',
+				:previous::/test
+				:else:1:/test
+				:current:2:/test/page/2
+				:else:3:/test/page/3
+				:else:4:/test/page/4
+				:else:5:/test/page/5
+				:ellipsis:9:/test/page/9
+				:else:10:/test/page/10
+				:next::/test/page/3
+				:u_prev:/test
+				:u_next:/test/page/3',
 			),
 			array(
 				array('routes' => array(
@@ -135,17 +146,17 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 				:per_page:10
 				:current_page:3
 				:base_url:
-				:previous::test/page/2
-				:else:1:test
-				:else:2:test/page/2
-				:current:3:test/page/3
-				:else:4:test/page/4
-				:else:5:test/page/5
-				:ellipsis:9:test/page/9
-				:else:10:test/page/10
-				:next::test/page/4
-				:u_prev:test/page/2
-				:u_next:test/page/4',
+				:previous::/test/page/2
+				:else:1:/test
+				:else:2:/test/page/2
+				:current:3:/test/page/3
+				:else:4:/test/page/4
+				:else:5:/test/page/5
+				:ellipsis:9:/test/page/9
+				:else:10:/test/page/10
+				:next::/test/page/4
+				:u_prev:/test/page/2
+				:u_next:/test/page/4',
 			),
 		);
 	}
@@ -157,6 +168,42 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 	{
 		$this->pagination->generate_template_pagination($base_url, 'pagination', $start_name, $num_items, $per_page, $start_item);
 		$this->template->set_filenames(array('test' => 'pagination.html'));
+
+		$this->assertEquals(str_replace("\t", '', $expect), $this->display('test'));
+	}
+
+	/**
+	 * @dataProvider generate_template_pagination_data
+	 */
+	public function test_generate_template_pagination_sub($base_url, $start_name, $num_items, $per_page, $start_item, $expect)
+	{
+		// Block needs to be assigned before pagination
+		$this->template->assign_block_vars('sub', array(
+			'FOO'		=> 'bar',
+		));
+
+		$this->pagination->generate_template_pagination($base_url, 'sub.pagination', $start_name, $num_items, $per_page, $start_item);
+		$this->template->set_filenames(array('test' => 'pagination_sub.html'));
+
+		$this->assertEquals(str_replace("\t", '', $expect), $this->display('test'));
+	}
+
+	/**
+	 * @dataProvider generate_template_pagination_data
+	 */
+	public function test_generate_template_pagination_double_nested($base_url, $start_name, $num_items, $per_page, $start_item, $expect)
+	{
+		// Block needs to be assigned before pagination
+		$this->template->assign_block_vars('sub', array(
+			'FOO'		=> 'bar',
+		));
+
+		$this->template->assign_block_vars('sub.level2', array(
+			'BAR'		=> 'foo',
+		));
+
+		$this->pagination->generate_template_pagination($base_url, 'sub.level2.pagination', $start_name, $num_items, $per_page, $start_item);
+		$this->template->set_filenames(array('test' => 'pagination_double_nested.html'));
 
 		$this->assertEquals(str_replace("\t", '', $expect), $this->display('test'));
 	}

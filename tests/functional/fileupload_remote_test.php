@@ -11,6 +11,8 @@
 *
 */
 
+require_once __DIR__ . '/../../phpBB/includes/functions_upload.php';
+
 /**
  * @group functional
  */
@@ -43,8 +45,6 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 		global $config, $user;
 		$user = null;
 		$config = array();
-
-		parent::tearDown();
 	}
 
 	public function test_invalid_extension()

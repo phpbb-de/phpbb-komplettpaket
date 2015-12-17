@@ -31,6 +31,11 @@ class user extends \phpbb\session
 	*/
 	public $timezone;
 
+	/**
+	* @var string Class name of datetime object
+	*/
+	protected $datetime;
+
 	var $lang_name = false;
 	var $lang_id = false;
 	var $lang_path;
@@ -42,12 +47,14 @@ class user extends \phpbb\session
 
 	/**
 	* Constructor to set the lang path
+	* @param string $datetime_class Class name of datetime class
 	*/
-	function __construct()
+	function __construct($datetime_class)
 	{
 		global $phpbb_root_path;
 
 		$this->lang_path = $phpbb_root_path . 'language/';
+		$this->datetime = $datetime_class;
 	}
 
 	/**
@@ -293,6 +300,14 @@ class user extends \phpbb\session
 		// Call phpbb_user_session_handler() in case external application want to "bend" some variables or replace classes...
 		// After calling it we continue script execution...
 		phpbb_user_session_handler();
+
+		/**
+		* Execute code at the end of user setup
+		*
+		* @event core.user_setup_after
+		* @since 3.1.6-RC1
+		*/
+		$phpbb_dispatcher->dispatch('core.user_setup_after');
 
 		// If this function got called from the error handler we are finished here.
 		if (defined('IN_ERROR_HANDLER'))
@@ -630,7 +645,7 @@ class user extends \phpbb\session
 				$lang_path = $this->lang_path;
 			}
 
-			if (strpos($phpbb_root_path . $filename, $lang_path . $this->lang_name . '/') === 0)
+			if (strpos($phpbb_root_path . $filename, $lang_path) === 0)
 			{
 				$language_filename = $phpbb_root_path . $filename;
 			}
@@ -710,7 +725,7 @@ class user extends \phpbb\session
 			$utc = new \DateTimeZone('UTC');
 		}
 
-		$time = new \phpbb\datetime($this, "@$gmepoch", $utc);
+		$time = new $this->datetime($this, "@$gmepoch", $utc);
 		$time->setTimezone($this->timezone);
 
 		return $time->format($format, $forcedate);
@@ -727,7 +742,7 @@ class user extends \phpbb\session
 	public function create_datetime($time = 'now', \DateTimeZone $timezone = null)
 	{
 		$timezone = $timezone ?: $this->timezone;
-		return new \phpbb\datetime($this, $time, $timezone);
+		return new $this->datetime($this, $time, $timezone);
 	}
 
 	/**

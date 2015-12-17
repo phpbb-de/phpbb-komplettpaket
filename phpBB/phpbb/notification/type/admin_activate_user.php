@@ -25,7 +25,7 @@ class admin_activate_user extends \phpbb\notification\type\base
 	*/
 	public function get_type()
 	{
-		return 'admin_activate_user';
+		return 'notification.type.admin_activate_user';
 	}
 
 	/**
@@ -104,7 +104,7 @@ class admin_activate_user extends \phpbb\notification\type\base
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->item_id);
+		return $this->user_loader->get_avatar($this->item_id, false, true);
 	}
 
 	/**
@@ -131,7 +131,7 @@ class admin_activate_user extends \phpbb\notification\type\base
 	public function get_email_template_variables()
 	{
 		$board_url = generate_board_url();
-		$username = $this->user_loader->get_username($this->item_id, 'no_profile');
+		$username = $this->user_loader->get_username($this->item_id, 'username');
 
 		return array(
 			'USERNAME'			=> htmlspecialchars_decode($username),

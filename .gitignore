@@ -1,9 +1,8 @@
 *~
 /phpunit.xml
-/phpBB/cache/twig/*
-/phpBB/cache/*.html
-/phpBB/cache/*.php
-/phpBB/cache/*.lock
+/phpBB/cache/*
+!/phpBB/cache/.htaccess
+!/phpBB/cache/index.html
 /phpBB/composer.phar
 /phpBB/config*.php
 /phpBB/ext/*
@@ -11,6 +10,7 @@
 /phpBB/images/avatars/gallery/*
 /phpBB/images/avatars/upload/*
 /phpBB/images/ranks/*
+/phpBB/install/schemas/schema.json
 /phpBB/language/*
 !/phpBB/language/en
 !/phpBB/language/de
@@ -23,3 +23,4 @@
 /tests/phpbb_unit_tests.sqlite*
 /tests/test_config*.php
 /tests/tmp/*
+/tests/vendor

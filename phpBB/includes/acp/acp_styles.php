@@ -29,14 +29,31 @@ class acp_styles
 	protected $styles_path;
 	protected $styles_path_absolute = 'styles';
 	protected $default_style = 0;
+	protected $styles_list_cols = 0;
+	protected $reserved_style_names = array('adm', 'admin', 'all');
 
+	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
+
+	/** @var \phpbb\user */
 	protected $user;
+
+	/** @var \phpbb\template\template */
 	protected $template;
+
+	/** @var \phpbb\request\request_interface */
 	protected $request;
+
+	/** @var \phpbb\cache\driver\driver_interface */
 	protected $cache;
+
+	/** @var \phpbb\auth\auth */
 	protected $auth;
+
+	/** @var string */
 	protected $phpbb_root_path;
+
+	/** @var string */
 	protected $php_ext;
 
 	public function main($id, $mode)
@@ -70,16 +87,23 @@ class acp_styles
 		$action = $this->request->variable('action', '');
 		$post_actions = array('install', 'activate', 'deactivate', 'uninstall');
 
-		if ($action && in_array($action, $post_actions) && !check_link_hash($request->variable('hash', ''), $action))
-		{
-			trigger_error($user->lang['FORM_INVALID'] . adm_back_link($this->u_action), E_USER_WARNING);
-		}
-
 		foreach ($post_actions as $key)
 		{
 			if ($this->request->is_set_post($key))
 			{
 				$action = $key;
+			}
+		}
+
+		// The uninstall action uses confirm_box() to verify the validity of the request,
+		// so there is no need to check for a valid token here.
+		if (in_array($action, $post_actions) && $action != 'uninstall')
+		{
+			$is_valid_request = check_link_hash($request->variable('hash', ''), $action) || check_form_key('styles_management');
+
+			if (!$is_valid_request)
+			{
+				trigger_error($user->lang['FORM_INVALID'] . adm_back_link($this->u_action), E_USER_WARNING);
 			}
 		}
 
@@ -122,6 +146,8 @@ class acp_styles
 	*/
 	protected function frontend()
 	{
+		add_form_key('styles_management');
+
 		// Check mode
 		switch ($this->mode)
 		{
@@ -133,30 +159,8 @@ class acp_styles
 				$this->welcome_message('INSTALL_STYLES', 'INSTALL_STYLES_EXPLAIN');
 				$this->show_available();
 				return;
-			case 'cache':
-				$this->action_cache();
-				return;
 		}
 		trigger_error($this->user->lang['NO_MODE'] . adm_back_link($this->u_action), E_USER_WARNING);
-	}
-
-	/**
-	* Purge cache
-	*/
-	protected function action_cache()
-	{
-		global $db, $cache, $auth;
-
-		$this->config->increment('assets_version', 1);
-		$this->cache->purge();
-
-		// Clear permissions
-		$this->auth->acl_clear_prefetch();
-		phpbb_cache_moderators($db, $cache, $auth);
-
-		add_log('admin', 'LOG_PURGE_CACHE');
-
-		trigger_error($this->user->lang['PURGED_CACHE'] . adm_back_link($this->u_base_action), E_USER_NOTICE);
 	}
 
 	/**
@@ -177,6 +181,12 @@ class acp_styles
 		$last_installed = false;
 		foreach ($dirs as $dir)
 		{
+			if (in_array($dir, $this->reserved_style_names))
+			{
+				$messages[] = $this->user->lang('STYLE_NAME_RESERVED', htmlspecialchars($dir));
+				continue;
+			}
+
 			$found = false;
 			foreach ($styles as &$style)
 			{
@@ -804,7 +814,7 @@ class acp_styles
 	*
 	* @param array $styles Styles list, passed as reference
 	* @param string $name Name of parent style
-	* @param string $level Styles tree level
+	* @param int $level Styles tree level
 	*/
 	protected function show_available_child_styles(&$styles, $name, $level)
 	{
@@ -822,7 +832,7 @@ class acp_styles
 	* Update styles tree
 	*
 	* @param array $styles Styles list, passed as reference
-	* @param array $style Current style, false if root
+	* @param array|false $style Current style, false if root
 	* @return bool True if something was updated, false if not
 	*/
 	protected function update_styles_tree(&$styles, $style = false)
@@ -888,7 +898,7 @@ class acp_styles
 	* Show item in styles list
 	*
 	* @param array $style style row
-	* @param array $level style inheritance level
+	* @param int $level style inheritance level
 	*/
 	protected function list_style(&$style, $level)
 	{
@@ -985,7 +995,7 @@ class acp_styles
 
 		// Assign template variables
 		$this->template->assign_block_vars('styles_list', $row);
-		foreach($actions as $action)
+		foreach ($actions as $action)
 		{
 			$this->template->assign_block_vars('styles_list.actions', $action);
 		}
@@ -1104,7 +1114,7 @@ class acp_styles
 	/**
 	* Install style
 	*
-	* @param $style style data
+	* @param array $style style data
 	* @return int Style id
 	*/
 	protected function install_style($style)

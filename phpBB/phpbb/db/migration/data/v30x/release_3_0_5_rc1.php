@@ -13,7 +13,9 @@
 
 namespace phpbb\db\migration\data\v30x;
 
-class release_3_0_5_rc1 extends \phpbb\db\migration\migration
+use phpbb\db\migration\container_aware_migration;
+
+class release_3_0_5_rc1 extends container_aware_migration
 {
 	public function effectively_installed()
 	{
@@ -55,6 +57,7 @@ class release_3_0_5_rc1 extends \phpbb\db\migration\migration
 
 	public function hash_old_passwords()
 	{
+		$passwords_manager = $this->container->get('passwords.manager');
 		$sql = 'SELECT user_id, user_password
 				FROM ' . $this->table_prefix . 'users
 				WHERE user_pass_convert = 1';
@@ -65,7 +68,7 @@ class release_3_0_5_rc1 extends \phpbb\db\migration\migration
 			if (strlen($row['user_password']) == 32)
 			{
 				$sql_ary = array(
-					'user_password'	=> phpbb_hash($row['user_password']),
+					'user_password'	=> '$CP$' . $passwords_manager->hash($row['user_password'], 'passwords.driver.salted_md5'),
 				);
 
 				$this->sql_query('UPDATE ' . $this->table_prefix . 'users SET ' . $this->db->sql_build_array('UPDATE', $sql_ary) . ' WHERE user_id = ' . $row['user_id']);
@@ -107,7 +110,7 @@ class release_3_0_5_rc1 extends \phpbb\db\migration\migration
 				// Select auth_option_ids... the largest id will be preserved
 				$sql = 'SELECT auth_option_id
 					FROM ' . ACL_OPTIONS_TABLE . "
-					WHERE auth_option = '" . $db->sql_escape($option) . "'
+					WHERE auth_option = '" . $this->db->sql_escape($option) . "'
 					ORDER BY auth_option_id DESC";
 				// sql_query_limit not possible here, due to bug in postgresql layer
 				$result = $this->db->sql_query($sql);

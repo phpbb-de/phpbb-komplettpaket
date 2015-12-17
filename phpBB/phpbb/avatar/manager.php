@@ -41,8 +41,8 @@ class manager
 	static protected $default_row = array(
 		'avatar'		=> '',
 		'avatar_type'	=> '',
-		'avatar_width'	=> '',
-		'avatar_height'	=> '',
+		'avatar_width'	=> 0,
+		'avatar_height'	=> 0,
 	);
 
 	/**
@@ -306,5 +306,61 @@ class manager
 		}
 
 		return $error;
+	}
+
+	/**
+	* Handle deleting avatars
+	*
+	* @param \phpbb\db\driver\driver_interface $db phpBB dbal
+	* @param \phpbb\user    $user phpBB user object
+	* @param array          $avatar_data Cleaned user data containing the user's
+	*                               avatar data
+	* @param string         $table Database table from which the avatar should be deleted
+	* @param string         $prefix Prefix of user data columns in database
+	* @return null
+	*/
+	public function handle_avatar_delete(\phpbb\db\driver\driver_interface $db, \phpbb\user $user, $avatar_data, $table, $prefix)
+	{
+		if ($driver = $this->get_driver($avatar_data['avatar_type']))
+		{
+			$driver->delete($avatar_data);
+		}
+
+		$result = $this->prefix_avatar_columns($prefix, self::$default_row);
+
+		$sql = 'UPDATE ' . $table . '
+			SET ' . $db->sql_build_array('UPDATE', $result) . '
+			WHERE ' . $prefix . 'id = ' . (int) $avatar_data['id'];
+		$db->sql_query($sql);
+
+		// Make sure we also delete this avatar from the users
+		if ($prefix === 'group_')
+		{
+			$result = $this->prefix_avatar_columns('user_', self::$default_row);
+
+			$sql = 'UPDATE ' . USERS_TABLE . '
+				SET ' . $db->sql_build_array('UPDATE', $result) . "
+				WHERE user_avatar = '" . $db->sql_escape($avatar_data['avatar']) . "'";
+			$db->sql_query($sql);
+		}
+	}
+
+	/**
+	 * Prefix avatar columns
+	 *
+	 * @param string $prefix Column prefix
+	 * @param array $data Column data
+	 *
+	 * @return array Column data with prefixed column names
+	 */
+	public function prefix_avatar_columns($prefix, $data)
+	{
+		foreach ($data as $key => $value)
+		{
+			$data[$prefix . $key] = $value;
+			unset($data[$key]);
+		}
+
+		return $data;
 	}
 }

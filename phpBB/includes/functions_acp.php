@@ -107,12 +107,30 @@ function adm_page_header($page_title)
 		'S_CONTENT_FLOW_END'	=> ($user->lang['DIRECTION'] == 'ltr') ? 'right' : 'left',
 	));
 
-	// application/xhtml+xml not used because of IE
-	header('Content-type: text/html; charset=UTF-8');
+	// An array of http headers that phpbb will set. The following event may override these.
+	$http_headers = array(
+		// application/xhtml+xml not used because of IE
+		'Content-type' => 'text/html; charset=UTF-8',
+		'Cache-Control' => 'private, no-cache="set-cookie"',
+		'Expires' => gmdate('D, d M Y H:i:s', time()) . ' GMT',
+	);
 
-	header('Cache-Control: private, no-cache="set-cookie"');
-	header('Expires: 0');
-	header('Pragma: no-cache');
+	/**
+	* Execute code and/or overwrite _common_ template variables after they have been assigned.
+	*
+	* @event core.adm_page_header_after
+	* @var	string	page_title			Page title
+	* @var	array	http_headers			HTTP headers that should be set by phpbb
+	*
+	* @since 3.1.0-RC3
+	*/
+	$vars = array('page_title', 'http_headers');
+	extract($phpbb_dispatcher->trigger_event('core.adm_page_header_after', compact($vars)));
+
+	foreach ($http_headers as $hname => $hval)
+	{
+		header((string) $hname . ': ' . (string) $hval);
+	}
 
 	return;
 }
@@ -149,7 +167,7 @@ function adm_page_footer($copyright_html = true)
 	phpbb_check_and_display_sql_report($request, $auth, $db);
 
 	$template->assign_vars(array(
-		'DEBUG_OUTPUT'		=> phpbb_generate_debug_output($db, $config, $auth, $user),
+		'DEBUG_OUTPUT'		=> phpbb_generate_debug_output($db, $config, $auth, $user, $phpbb_dispatcher),
 		'TRANSLATION_INFO'	=> (!empty($user->lang['TRANSLATION_INFO'])) ? $user->lang['TRANSLATION_INFO'] : '',
 		'S_COPYRIGHT_HTML'	=> $copyright_html,
 		'CREDIT_LINE'		=> $user->lang('POWERED_BY', '<a href="https://www.phpbb.com/">phpBB</a>&reg; Forum Software &copy; phpBB Limited'),
@@ -227,8 +245,13 @@ function build_cfg_template($tpl_type, $key, &$new, $config_key, $vars)
 
 	switch ($tpl_type[0])
 	{
-		case 'text':
 		case 'password':
+			if ($new[$config_key] !== '')
+			{
+				// replace passwords with asterixes
+				$new[$config_key] = '********';
+			}
+		case 'text':
 		case 'url':
 		case 'email':
 		case 'color':
@@ -240,7 +263,6 @@ function build_cfg_template($tpl_type, $key, &$new, $config_key, $vars)
 		case 'range':
 		case 'search':
 		case 'tel':
-		case 'url':
 		case 'week':
 			$size = (int) $tpl_type[1];
 			$maxlength = (int) $tpl_type[2];
@@ -533,6 +555,9 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 
 				$cfg_array[$config_name] = trim($destination);
 
+			// Absolute file path
+			case 'absolute_path':
+			case 'absolute_path_writable':
 			// Path being relative (still prefixed by phpbb_root_path), but with the ability to escape the root dir...
 			case 'path':
 			case 'wpath':
@@ -551,20 +576,22 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 					break;
 				}
 
-				if (!file_exists($phpbb_root_path . $cfg_array[$config_name]))
+				$path = in_array($config_definition['validate'], array('wpath', 'path', 'rpath', 'rwpath')) ? $phpbb_root_path . $cfg_array[$config_name] : $cfg_array[$config_name];
+
+				if (!file_exists($path))
 				{
 					$error[] = sprintf($user->lang['DIRECTORY_DOES_NOT_EXIST'], $cfg_array[$config_name]);
 				}
 
-				if (file_exists($phpbb_root_path . $cfg_array[$config_name]) && !is_dir($phpbb_root_path . $cfg_array[$config_name]))
+				if (file_exists($path) && !is_dir($path))
 				{
 					$error[] = sprintf($user->lang['DIRECTORY_NOT_DIR'], $cfg_array[$config_name]);
 				}
 
 				// Check if the path is writable
-				if ($config_definition['validate'] == 'wpath' || $config_definition['validate'] == 'rwpath')
+				if ($config_definition['validate'] == 'wpath' || $config_definition['validate'] == 'rwpath' || $config_definition['validate'] === 'absolute_path_writable')
 				{
-					if (file_exists($phpbb_root_path . $cfg_array[$config_name]) && !phpbb_is_writable($phpbb_root_path . $cfg_array[$config_name]))
+					if (file_exists($path) && !phpbb_is_writable($path))
 					{
 						$error[] = sprintf($user->lang['DIRECTORY_NOT_WRITABLE'], $cfg_array[$config_name]);
 					}
@@ -655,4 +682,31 @@ function validate_range($value_ary, &$error)
 			break;
 		}
 	}
+}
+
+/**
+* Inserts new config display_vars into an exisiting display_vars array
+* at the given position.
+*
+* @param array $display_vars An array of existing config display vars
+* @param array $add_config_vars An array of new config display vars
+* @param array $where Where to place the new config vars,
+*              before or after an exisiting config, as an array
+*              of the form: array('after' => 'config_name') or
+*              array('before' => 'config_name').
+* @return array The array of config display vars
+*/
+function phpbb_insert_config_array($display_vars, $add_config_vars, $where)
+{
+	if (is_array($where) && array_key_exists(current($where), $display_vars))
+	{
+		$position = array_search(current($where), array_keys($display_vars)) + ((key($where) == 'before') ? 0 : 1);
+		$display_vars = array_merge(
+			array_slice($display_vars, 0, $position),
+			$add_config_vars,
+			array_slice($display_vars, $position)
+		);
+	}
+
+	return $display_vars;
 }

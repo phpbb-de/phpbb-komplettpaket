@@ -38,7 +38,7 @@ $dbms = $phpbb_config_php_file->convert_30_dbms_to_31($dbms);
 $convertor_data = array(
 	'forum_name'	=> 'phpBB 2.0.x',
 	'version'		=> '1.0.3',
-	'phpbb_version'	=> '3.1.0-RC2',
+	'phpbb_version'	=> '3.1.6',
 	'author'		=> '<a href="https://www.phpbb.com/">phpBB Limited</a>',
 	'dbms'			=> $dbms,
 	'dbhost'		=> $dbhost,
@@ -896,8 +896,7 @@ if (!$get_info)
 				array('user_regdate',			'users.user_regdate',				''),
 				array('username',				'users.username',					'phpbb_set_default_encoding'), // recode to utf8 with default lang
 				array('username_clean',			'users.username',					array('function1' => 'phpbb_set_default_encoding', 'function2' => 'utf8_clean_string')),
-				array('user_password',			'users.user_password',				'phpbb_hash'),
-				array('user_pass_convert',		1,									''),
+				array('user_password',			'users.user_password',				'phpbb_convert_password_hash'),
 				array('user_posts',				'users.user_posts',					'intval'),
 				array('user_email',				'users.user_email',					'strtolower'),
 				array('user_email_hash',		'users.user_email',					'gen_email_hash'),

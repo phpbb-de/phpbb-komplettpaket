@@ -30,10 +30,11 @@ if (!defined('IN_PHPBB'))
 * @param string $avatar_height Height of users avatar
 * @param string $alt Optional language string for alt tag within image, can be a language key or text
 * @param bool $ignore_config Ignores the config-setting, to be still able to view the avatar in the UCP
+* @param bool $lazy If true, will be lazy loaded (requires JS)
 *
 * @return string Avatar image
 */
-function get_user_avatar($avatar, $avatar_type, $avatar_width, $avatar_height, $alt = 'USER_AVATAR', $ignore_config = false)
+function get_user_avatar($avatar, $avatar_type, $avatar_width, $avatar_height, $alt = 'USER_AVATAR', $ignore_config = false, $lazy = false)
 {
 	// map arguments to new function phpbb_get_avatar()
 	$row = array(
@@ -43,7 +44,7 @@ function get_user_avatar($avatar, $avatar_type, $avatar_width, $avatar_height, $
 		'avatar_height'	=> $avatar_height,
 	);
 
-	return phpbb_get_avatar($row, $alt, $ignore_config);
+	return phpbb_get_avatar($row, $alt, $ignore_config, $lazy);
 }
 
 /**
@@ -101,18 +102,21 @@ function phpbb_clean_path($path)
 	}
 	else if (!$phpbb_path_helper)
 	{
+		global $phpbb_root_path, $phpEx;
+
 		// The container is not yet loaded, use a new instance
 		if (!class_exists('\phpbb\path_helper'))
 		{
-			global $phpbb_root_path, $phpEx;
 			require($phpbb_root_path . 'phpbb/path_helper.' . $phpEx);
 		}
 
+		$request = new phpbb\request\request();
 		$phpbb_path_helper = new phpbb\path_helper(
 			new phpbb\symfony_request(
-				new phpbb\request\request()
+				$request
 			),
 			new phpbb\filesystem(),
+			$request,
 			$phpbb_root_path,
 			$phpEx
 		);
@@ -133,10 +137,9 @@ function phpbb_clean_path($path)
 */
 function tz_select($default = '', $truncate = false)
 {
-	global $user;
+	global $template, $user;
 
-	$timezone_select = phpbb_timezone_select($user, $default, $truncate);
-	return $timezone_select['tz_select'];
+	return phpbb_timezone_select($template, $user, $default, $truncate);
 }
 
 /**
@@ -165,4 +168,31 @@ function update_foes($group_id = false, $user_id = false)
 {
 	global $db, $auth;
 	return phpbb_update_foes($db, $auth, $group_id, $user_id);
+}
+
+/**
+* Get user rank title and image
+*
+* @param int $user_rank the current stored users rank id
+* @param int $user_posts the users number of posts
+* @param string &$rank_title the rank title will be stored here after execution
+* @param string &$rank_img the rank image as full img tag is stored here after execution
+* @param string &$rank_img_src the rank image source is stored here after execution
+*
+* @deprecated 3.1.0-RC5 (To be removed: 3.3.0)
+*
+* Note: since we do not want to break backwards-compatibility, this function will only properly assign ranks to guests if you call it for them with user_posts == false
+*/
+function get_user_rank($user_rank, $user_posts, &$rank_title, &$rank_img, &$rank_img_src)
+{
+	global $phpbb_root_path, $phpEx;
+	if (!function_exists('phpbb_get_user_rank'))
+	{
+		include($phpbb_root_path . 'includes/functions_display.' . $phpEx);
+	}
+
+	$rank_data = phpbb_get_user_rank(array('user_rank' => $user_rank), $user_posts);
+	$rank_title = $rank_data['title'];
+	$rank_img = $rank_data['img'];
+	$rank_img_src = $rank_data['img_src'];
 }

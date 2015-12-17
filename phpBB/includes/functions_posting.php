@@ -398,14 +398,15 @@ function posting_gen_topic_types($forum_id, $cur_topic_type = POST_NORMAL)
 * @param string			$local_storage	The path to the local file
 * @param bool			$is_message		Whether it is a PM or not
 * @param \filespec		$local_filedata	A filespec object created for the local file
+* @param \phpbb\mimetype\guesser	$mimetype_guesser	The mimetype guesser object if used
 * @param \phpbb\plupload\plupload	$plupload		The plupload object if one is being used
 *
 * @return object filespec
 */
-function upload_attachment($form_name, $forum_id, $local = false, $local_storage = '', $is_message = false, $local_filedata = false, \phpbb\plupload\plupload $plupload = null)
+function upload_attachment($form_name, $forum_id, $local = false, $local_storage = '', $is_message = false, $local_filedata = false, \phpbb\mimetype\guesser $mimetype_guesser = null, \phpbb\plupload\plupload $plupload = null)
 {
 	global $auth, $user, $config, $db, $cache;
-	global $phpbb_root_path, $phpEx;
+	global $phpbb_root_path, $phpEx, $phpbb_dispatcher;
 
 	$filedata = array(
 		'error'	=> array()
@@ -434,7 +435,7 @@ function upload_attachment($form_name, $forum_id, $local = false, $local_storage
 	$extensions = $cache->obtain_attach_extensions((($is_message) ? false : (int) $forum_id));
 	$upload->set_allowed_extensions(array_keys($extensions['_allowed_']));
 
-	$file = ($local) ? $upload->local_upload($local_storage, $local_filedata) : $upload->form_upload($form_name, $plupload);
+	$file = ($local) ? $upload->local_upload($local_storage, $local_filedata, $mimetype_guesser) : $upload->form_upload($form_name, $mimetype_guesser, $plupload);
 
 	if ($file->init_error)
 	{
@@ -505,6 +506,20 @@ function upload_attachment($form_name, $forum_id, $local = false, $local_storage
 	$filedata['physical_filename'] = $file->get('realname');
 	$filedata['real_filename'] = $file->get('uploadname');
 	$filedata['filetime'] = time();
+
+	/**
+	* Event to modify uploaded file before submit to the post
+	*
+	* @event core.modify_uploaded_file
+	* @var	array	filedata	Array containing uploaded file data
+	* @var	bool	is_image	Flag indicating if the file is an image
+	* @since 3.1.0-RC3
+	*/
+	$vars = array(
+		'filedata',
+		'is_image',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.modify_uploaded_file', compact($vars)));
 
 	// Check our complete quota
 	if ($config['attachment_quota'])
@@ -893,7 +908,7 @@ function posting_gen_attachment_entry($attachment_data, &$filename_data, $show_a
 function load_drafts($topic_id = 0, $forum_id = 0, $id = 0, $pm_action = '', $msg_id = 0)
 {
 	global $user, $db, $template, $auth;
-	global $phpbb_root_path, $phpEx;
+	global $phpbb_root_path, $phpbb_dispatcher, $phpEx;
 
 	$topic_ids = $forum_ids = $draft_rows = array();
 
@@ -936,7 +951,7 @@ function load_drafts($topic_id = 0, $forum_id = 0, $id = 0, $pm_action = '', $ms
 	$topic_rows = array();
 	if (sizeof($topic_ids))
 	{
-		$sql = 'SELECT topic_id, forum_id, topic_title
+		$sql = 'SELECT topic_id, forum_id, topic_title, topic_poster
 			FROM ' . TOPICS_TABLE . '
 			WHERE ' . $db->sql_in_set('topic_id', array_unique($topic_ids));
 		$result = $db->sql_query($sql);
@@ -947,6 +962,20 @@ function load_drafts($topic_id = 0, $forum_id = 0, $id = 0, $pm_action = '', $ms
 		}
 		$db->sql_freeresult($result);
 	}
+
+	/**
+	* Drafts found and their topics
+	* Edit $draft_rows in order to add or remove drafts loaded
+	*
+	* @event core.load_drafts_draft_list_result
+	* @var	array	draft_rows			The drafts query result. Includes its forum id and everything about the draft
+	* @var	array	topic_ids			The list of topics got from the topics table
+	* @var	array	topic_rows			The topics that draft_rows references
+	* @since 3.1.0-RC3
+	*/
+	$vars = array('draft_rows', 'topic_ids', 'topic_rows');
+	extract($phpbb_dispatcher->trigger_event('core.load_drafts_draft_list_result', compact($vars)));
+
 	unset($topic_ids);
 
 	$template->assign_var('S_SHOW_DRAFTS', true);
@@ -1007,10 +1036,11 @@ function load_drafts($topic_id = 0, $forum_id = 0, $id = 0, $pm_action = '', $ms
 */
 function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id = 0, $show_quote_button = true)
 {
-	global $user, $auth, $db, $template, $bbcode, $cache;
-	global $config, $phpbb_root_path, $phpEx, $phpbb_container;
+	global $user, $auth, $db, $template, $cache;
+	global $config, $phpbb_root_path, $phpEx, $phpbb_container, $phpbb_dispatcher;
 
 	$phpbb_content_visibility = $phpbb_container->get('content.visibility');
+	$sql_sort = ($mode == 'post_review') ? 'ASC' : 'DESC';
 
 	// Go ahead and pull all data for this topic
 	$sql = 'SELECT p.post_id
@@ -1019,8 +1049,7 @@ function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id
 			AND " . $phpbb_content_visibility->get_visibility_sql('post', $forum_id, 'p.') . '
 			' . (($mode == 'post_review') ? " AND p.post_id > $cur_post_id" : '') . '
 			' . (($mode == 'post_review_edit') ? " AND p.post_id = $cur_post_id" : '') . '
-		ORDER BY p.post_time ';
-	$sql .= ($mode == 'post_review') ? 'ASC' : 'DESC';
+		ORDER BY p.post_time ' . $sql_sort . ', p.post_id ' . $sql_sort;
 	$result = $db->sql_query_limit($sql, $config['posts_per_page']);
 
 	$post_list = array();
@@ -1065,13 +1094,11 @@ function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id
 	$sql = $db->sql_build_query('SELECT', $sql_ary);
 	$result = $db->sql_query($sql);
 
-	$bbcode_bitfield = '';
 	$rowset = array();
 	$has_attachments = false;
 	while ($row = $db->sql_fetchrow($result))
 	{
 		$rowset[$row['post_id']] = $row;
-		$bbcode_bitfield = $bbcode_bitfield | base64_decode($row['bbcode_bitfield']);
 
 		if ($row['post_attachment'])
 		{
@@ -1079,13 +1106,6 @@ function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id
 		}
 	}
 	$db->sql_freeresult($result);
-
-	// Instantiate BBCode class
-	if (!isset($bbcode) && $bbcode_bitfield !== '')
-	{
-		include_once($phpbb_root_path . 'includes/bbcode.' . $phpEx);
-		$bbcode = new bbcode(base64_encode($bbcode_bitfield));
-	}
 
 	// Grab extensions
 	$extensions = $attachments = array();
@@ -1147,7 +1167,7 @@ function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id
 		$post_anchor = ($mode == 'post_review') ? 'ppr' . $row['post_id'] : 'pr' . $row['post_id'];
 		$u_show_post = append_sid($phpbb_root_path . 'viewtopic.' . $phpEx, "f=$forum_id&amp;t=$topic_id&amp;p={$row['post_id']}&amp;view=show#p{$row['post_id']}");
 
-		$template->assign_block_vars($mode . '_row', array(
+		$post_row = array(
 			'POST_AUTHOR_FULL'		=> get_username_string('full', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
 			'POST_AUTHOR_COLOUR'	=> get_username_string('colour', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
 			'POST_AUTHOR'			=> get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
@@ -1166,8 +1186,36 @@ function topic_review($topic_id, $forum_id, $mode = 'topic_review', $cur_post_id
 			'POST_ID'			=> $row['post_id'],
 			'U_MINI_POST'		=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", 'p=' . $row['post_id']) . '#p' . $row['post_id'],
 			'U_MCP_DETAILS'		=> ($auth->acl_get('m_info', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=main&amp;mode=post_details&amp;f=' . $forum_id . '&amp;p=' . $row['post_id'], true, $user->session_id) : '',
-			'POSTER_QUOTE'		=> ($show_quote_button && $auth->acl_get('f_reply', $forum_id)) ? addslashes(get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username'])) : '')
+			'POSTER_QUOTE'		=> ($show_quote_button && $auth->acl_get('f_reply', $forum_id)) ? addslashes(get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username'])) : '',
 		);
+
+		$current_row_number = $i;
+
+		/**
+		* Event to modify the template data block for topic reviews
+		*
+		* @event core.topic_review_modify_row
+		* @var	string	mode				The review mode
+		* @var	int		topic_id			The topic that is being reviewed
+		* @var	int		forum_id			The topic's forum
+		* @var	int		cur_post_id			Post offset id
+		* @var	int		current_row_number	Number of the current row being iterated
+		* @var	array	post_row			Template block array of the current post
+		* @var	array	row					Array with original post and user data
+		* @since 3.1.4-RC1
+		*/
+		$vars = array(
+			'mode',
+			'topic_id',
+			'forum_id',
+			'cur_post_id',
+			'current_row_number',
+			'post_row',
+			'row',
+		);
+		extract($phpbb_dispatcher->trigger_event('core.topic_review_modify_row', compact($vars)));
+
+		$template->assign_block_vars($mode . '_row', $post_row);
 
 		// Display not already displayed Attachments for this post, we already parsed them. ;)
 		if (!empty($attachments[$row['post_id']]))
@@ -1295,18 +1343,7 @@ function delete_post($forum_id, $topic_id, $post_id, &$data, $is_soft = false, $
 			{
 				delete_topics('topic_id', array($topic_id), false);
 
-				if ($data['topic_visibility'] == ITEM_APPROVED)
-				{
-					$sql_data[FORUMS_TABLE] .= 'forum_posts_approved = forum_posts_approved - 1, forum_topics_approved = forum_topics_approved - 1';
-				}
-				else if ($data['topic_visibility'] == ITEM_UNAPPROVED || $data['post_visibility'] == ITEM_REAPPROVE)
-				{
-					$sql_data[FORUMS_TABLE] .= 'forum_posts_unapproved = forum_posts_unapproved - 1, forum_topics_unapproved = forum_topics_unapproved - 1';
-				}
-				else if ($data['topic_visibility'] == ITEM_DELETED)
-				{
-					$sql_data[FORUMS_TABLE] .= 'forum_posts_softdeleted = forum_posts_softdeleted - 1, forum_topics_softdeleted = forum_topics_softdeleted - 1';
-				}
+				$phpbb_content_visibility->remove_topic_from_statistic($data, $sql_data);
 
 				$update_sql = update_post_information('forum', $forum_id, true);
 				if (sizeof($update_sql))
@@ -1324,7 +1361,7 @@ function delete_post($forum_id, $topic_id, $post_id, &$data, $is_soft = false, $
 				WHERE p.topic_id = $topic_id
 					AND p.poster_id = u.user_id
 					AND p.post_visibility = " . ITEM_APPROVED . '
-				ORDER BY p.post_time ASC';
+				ORDER BY p.post_time ASC, p.post_id ASC';
 			$result = $db->sql_query_limit($sql, 1);
 			$row = $db->sql_fetchrow($result);
 			$db->sql_freeresult($result);
@@ -1336,7 +1373,7 @@ function delete_post($forum_id, $topic_id, $post_id, &$data, $is_soft = false, $
 					FROM ' . POSTS_TABLE . ' p, ' . USERS_TABLE . " u
 					WHERE p.topic_id = $topic_id
 						AND p.poster_id = u.user_id
-					ORDER BY p.post_time ASC";
+					ORDER BY p.post_time ASC, p.post_id ASC";
 				$result = $db->sql_query_limit($sql, 1);
 				$row = $db->sql_fetchrow($result);
 				$db->sql_freeresult($result);
@@ -1391,7 +1428,7 @@ function delete_post($forum_id, $topic_id, $post_id, &$data, $is_soft = false, $
 				WHERE topic_id = $topic_id
 					AND " . $phpbb_content_visibility->get_visibility_sql('post', $forum_id) . '
 					AND post_time > ' . $data['post_time'] . '
-				ORDER BY post_time ASC';
+				ORDER BY post_time ASC, post_id ASC';
 			$result = $db->sql_query_limit($sql, 1);
 			$next_post_id = (int) $db->sql_fetchfield('post_id');
 			$db->sql_freeresult($result);
@@ -1402,20 +1439,7 @@ function delete_post($forum_id, $topic_id, $post_id, &$data, $is_soft = false, $
 	{
 		if (!$is_soft)
 		{
-			if ($data['post_visibility'] == ITEM_APPROVED)
-			{
-				$phpbb_content_visibility->remove_post_from_statistic($data, $sql_data);
-			}
-			else if ($data['post_visibility'] == ITEM_UNAPPROVED || $data['post_visibility'] == ITEM_REAPPROVE)
-			{
-				$sql_data[FORUMS_TABLE] = (($sql_data[FORUMS_TABLE]) ? $sql_data[FORUMS_TABLE] . ', ' : '') . 'forum_posts_unapproved = forum_posts_unapproved - 1';
-				$sql_data[TOPICS_TABLE] = (($sql_data[TOPICS_TABLE]) ? $sql_data[TOPICS_TABLE] . ', ' : '') . 'topic_posts_unapproved = topic_posts_unapproved - 1';
-			}
-			else if ($data['post_visibility'] == ITEM_DELETED)
-			{
-				$sql_data[FORUMS_TABLE] = (($sql_data[FORUMS_TABLE]) ? $sql_data[FORUMS_TABLE] . ', ' : '') . 'forum_posts_softdeleted = forum_posts_softdeleted - 1';
-				$sql_data[TOPICS_TABLE] = (($sql_data[TOPICS_TABLE]) ? $sql_data[TOPICS_TABLE] . ', ' : '') . 'topic_posts_softdeleted = topic_posts_softdeleted - 1';
-			}
+			$phpbb_content_visibility->remove_post_from_statistic($data, $sql_data);
 		}
 
 		$sql = 'SELECT 1 AS has_attachments
@@ -1518,7 +1542,14 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 		return false;
 	}
 
-	$current_time = time();
+	if (!empty($data['post_time']))
+	{
+		$current_time = $data['post_time'];
+	}
+	else
+	{
+		$current_time = time();
+	}
 
 	if ($mode == 'post')
 	{
@@ -1714,6 +1745,7 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 				'topic_type'				=> $topic_type,
 				'topic_time_limit'			=> ($topic_type == POST_STICKY || $topic_type == POST_ANNOUNCE) ? ($data['topic_time_limit'] * 86400) : 0,
 				'topic_attachment'			=> (!empty($data['attachment_data'])) ? 1 : 0,
+				'topic_status'				=> (isset($data['topic_status'])) ? $data['topic_status'] : ITEM_UNLOCKED,
 			);
 
 			if (isset($poll['poll_options']) && !empty($poll['poll_options']))
@@ -1819,6 +1851,30 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 
 		break;
 	}
+
+	/**
+	* Modify sql query data for post submitting
+	*
+	* @event core.submit_post_modify_sql_data
+	* @var	array	data				Array with the data for the post
+	* @var	array	poll				Array with the poll data for the post
+	* @var	string	post_mode			Variable containing posting mode value
+	* @var	bool	sql_data			Array with the data for the posting SQL query
+	* @var	string	subject				Variable containing post subject value
+	* @var	int		topic_type			Variable containing topic type value
+	* @var	string	username			Variable containing post author name
+	* @since 3.1.3-RC1
+	*/
+	$vars = array(
+		'data',
+		'poll',
+		'post_mode',
+		'sql_data',
+		'subject',
+		'topic_type',
+		'username',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.submit_post_modify_sql_data', compact($vars)));
 
 	// Submit new topic
 	if ($post_mode == 'post')
@@ -2161,7 +2217,7 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 		}
 
 		$error = false;
-		$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
+		$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
 
 		if ($error)
 		{
@@ -2251,17 +2307,17 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 		{
 			case 'post':
 				$phpbb_notifications->add_notifications(array(
-					'quote',
-					'topic',
+					'notification.type.quote',
+					'notification.type.topic',
 				), $notification_data);
 			break;
 
 			case 'reply':
 			case 'quote':
 				$phpbb_notifications->add_notifications(array(
-					'quote',
-					'bookmark',
-					'post',
+					'notification.type.quote',
+					'notification.type.bookmark',
+					'notification.type.post',
 				), $notification_data);
 			break;
 
@@ -2270,10 +2326,10 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 			case 'edit':
 			case 'edit_last_post':
 				$phpbb_notifications->update_notifications(array(
-					'quote',
-					'bookmark',
-					'topic',
-					'post',
+					'notification.type.quote',
+					'notification.type.bookmark',
+					'notification.type.topic',
+					'notification.type.post',
 				), $notification_data);
 			break;
 		}
@@ -2283,12 +2339,12 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 		switch ($mode)
 		{
 			case 'post':
-				$phpbb_notifications->add_notifications('topic_in_queue', $notification_data);
+				$phpbb_notifications->add_notifications('notification.type.topic_in_queue', $notification_data);
 			break;
 
 			case 'reply':
 			case 'quote':
-				$phpbb_notifications->add_notifications('post_in_queue', $notification_data);
+				$phpbb_notifications->add_notifications('notification.type.post_in_queue', $notification_data);
 			break;
 
 			case 'edit_topic':
@@ -2305,20 +2361,20 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 		{
 			case 'edit_topic':
 			case 'edit_first_post':
-				$phpbb_notifications->add_notifications('topic_in_queue', $notification_data);
+				$phpbb_notifications->add_notifications('notification.type.topic_in_queue', $notification_data);
 
 				// Delete the approve_post notification so we can notify the user again,
 				// when his post got reapproved
-				$phpbb_notifications->delete_notifications('approve_post', $notification_data['post_id']);
+				$phpbb_notifications->delete_notifications('notification.type.approve_post', $notification_data['post_id']);
 			break;
 
 			case 'edit':
 			case 'edit_last_post':
-				$phpbb_notifications->add_notifications('post_in_queue', $notification_data);
+				$phpbb_notifications->add_notifications('notification.type.post_in_queue', $notification_data);
 
 				// Delete the approve_post notification so we can notify the user again,
 				// when his post got reapproved
-				$phpbb_notifications->delete_notifications('approve_post', $notification_data['post_id']);
+				$phpbb_notifications->delete_notifications('notification.type.approve_post', $notification_data['post_id']);
 			break;
 
 			case 'post':
@@ -2373,12 +2429,33 @@ function submit_post($mode, $subject, $username, $topic_type, &$poll, &$data, $u
 	* event is to modify the return URL ($url).
 	*
 	* @event core.submit_post_end
-	* @var	string		url						The "Return to topic" URL
-	* @var	array		data					Array of post data about the
-	*											submitted post
+	* @var	string	mode				Variable containing posting mode value
+	* @var	string	subject				Variable containing post subject value
+	* @var	string	username			Variable containing post author name
+	* @var	int		topic_type			Variable containing topic type value
+	* @var	array	poll				Array with the poll data for the post
+	* @var	array	data				Array with the data for the post
+	* @var	int		post_visibility		Variable containing up to date post visibility
+	* @var	bool	update_message		Flag indicating if the post will be updated
+	* @var	bool	update_search_index	Flag indicating if the search index will be updated
+	* @var	string	url					The "Return to topic" URL
+	*
 	* @since 3.1.0-a3
+	* @change 3.1.0-RC3 Added vars mode, subject, username, topic_type,
+	*		poll, update_message, update_search_index
 	*/
-	$vars = array('url', 'data');
+	$vars = array(
+		'mode',
+		'subject',
+		'username',
+		'topic_type',
+		'poll',
+		'data',
+		'post_visibility',
+		'update_message',
+		'update_search_index',
+		'url',
+	);
 	extract($phpbb_dispatcher->trigger_event('core.submit_post_end', compact($vars)));
 
 	return $url;
@@ -2514,7 +2591,7 @@ function phpbb_upload_popup($forum_style = 0)
 /**
 * Do the various checks required for removing posts as well as removing it
 */
-function phpbb_handle_post_delete($forum_id, $topic_id, $post_id, &$post_data, $is_soft = false, $soft_delete_reason = '')
+function phpbb_handle_post_delete($forum_id, $topic_id, $post_id, &$post_data, $is_soft = false, $delete_reason = '')
 {
 	global $user, $auth, $config, $request;
 	global $phpbb_root_path, $phpEx;
@@ -2547,19 +2624,19 @@ function phpbb_handle_post_delete($forum_id, $topic_id, $post_id, &$post_data, $
 				'post_postcount'		=> $post_data['post_postcount'],
 			);
 
-			$next_post_id = delete_post($forum_id, $topic_id, $post_id, $data, $is_soft, $soft_delete_reason);
+			$next_post_id = delete_post($forum_id, $topic_id, $post_id, $data, $is_soft, $delete_reason);
 			$post_username = ($post_data['poster_id'] == ANONYMOUS && !empty($post_data['post_username'])) ? $post_data['post_username'] : $post_data['username'];
 
 			if ($next_post_id === false)
 			{
-				add_log('mod', $forum_id, $topic_id, (($is_soft) ? 'LOG_SOFTDELETE_TOPIC' : 'LOG_DELETE_TOPIC'), $post_data['topic_title'], $post_username, $soft_delete_reason);
+				add_log('mod', $forum_id, $topic_id, (($is_soft) ? 'LOG_SOFTDELETE_TOPIC' : 'LOG_DELETE_TOPIC'), $post_data['topic_title'], $post_username, $delete_reason);
 
 				$meta_info = append_sid("{$phpbb_root_path}viewforum.$phpEx", "f=$forum_id");
 				$message = $user->lang['POST_DELETED'];
 			}
 			else
 			{
-				add_log('mod', $forum_id, $topic_id, (($is_soft) ? 'LOG_SOFTDELETE_POST' : 'LOG_DELETE_POST'), $post_data['post_subject'], $post_username, $soft_delete_reason);
+				add_log('mod', $forum_id, $topic_id, (($is_soft) ? 'LOG_SOFTDELETE_POST' : 'LOG_DELETE_POST'), $post_data['post_subject'], $post_username, $delete_reason);
 
 				$meta_info = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;p=$next_post_id") . "#p$next_post_id";
 				$message = $user->lang['POST_DELETED'];

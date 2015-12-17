@@ -32,7 +32,7 @@ class phpbb_console_command_cron_list_test extends phpbb_test_case
 
 	protected function setUp()
 	{
-		$this->user = $this->getMock('\phpbb\user');
+		$this->user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
 		$this->user->method('lang')->will($this->returnArgument(0));
 	}
 
@@ -75,7 +75,7 @@ class phpbb_console_command_cron_list_test extends phpbb_test_case
 	public function get_command_tester()
 	{
 		$application = new Application();
-		$application->add(new cron_list($this->cron_manager, $this->user));
+		$application->add(new cron_list($this->user, $this->cron_manager));
 
 		$command = $application->find('cron:list');
 		$this->command_name = $command->getName();

@@ -62,7 +62,7 @@ class phpbb_functional_prune_shadow_topic_test extends phpbb_functional_test_cas
 		$crawler = self::request('GET', "viewtopic.php?t={$this->post['topic_id']}&sid={$this->sid}");
 
 		$this->assertContains('Prune Shadow #1', $crawler->filter('html')->text());
-		$this->data['topics']['Prune Shadow #1'] = (int) $post['topic_id'];
+		$this->data['topics']['Prune Shadow #1'] = (int) $this->post['topic_id'];
 		$this->data['posts']['Prune Shadow #1'] = (int) $this->get_parameter_from_link($crawler->filter('.post')->selectLink($this->lang('POST', '', ''))->link()->getUri(), 'p');
 
 		$this->assert_forum_details($this->data['forums']['Prune Shadow'], array(
@@ -129,8 +129,8 @@ class phpbb_functional_prune_shadow_topic_test extends phpbb_functional_test_cas
 		$result = $this->db->sql_query($sql);
 
 		$crawler = self::request('GET', "viewforum.php?f={$this->data['forums']['Prune Shadow']}&sid={$this->sid}");
-		$cron_link = $crawler->filter('img')->last()->attr('src');
-		$crawler = self::request('GET', $cron_link . "&sid={$this->sid}", array(), false);
+		$this->assertNotEmpty($crawler->filter('img')->last()->attr('src'));
+		self::request('GET', "cron.php?cron_type=cron.task.core.prune_shadow_topics&f={$this->data['forums']['Prune Shadow']}&sid={$this->sid}", array(), false);
 
 		$this->assert_forum_details($this->data['forums']['Prune Shadow'], array(
 			'forum_posts_approved'		=> 0,

@@ -79,8 +79,7 @@ class plupload
 		$this->php_ini = $php_ini;
 		$this->mimetype_guesser = $mimetype_guesser;
 
-		$this->upload_directory = $this->phpbb_root_path . $this->config['upload_path'];
-		$this->temporary_directory = $this->upload_directory . '/plupload';
+		$this->set_default_directories();
 	}
 
 	/**
@@ -119,6 +118,9 @@ class plupload
 		if ($chunk == $chunks_expected - 1)
 		{
 			rename("{$file_path}.part", $file_path);
+
+			// Reset upload directories to defaults once completed
+			$this->set_default_directories();
 
 			// Need to modify some of the $_FILES values to reflect the new file
 			return array(
@@ -265,8 +267,8 @@ class plupload
 		{
 			$resize = sprintf(
 				'resize: {width: %d, height: %d, quality: 100},',
-				(int) $this->config['img_max_height'],
-				(int) $this->config['img_max_width']
+				(int) $this->config['img_max_width'],
+				(int) $this->config['img_max_height']
 			);
 		}
 
@@ -324,7 +326,7 @@ class plupload
 
 		$tmp_file = $this->temporary_filepath($upload['tmp_name']);
 
-		if (!move_uploaded_file($upload['tmp_name'], $tmp_file))
+		if (!phpbb_is_writable($this->temporary_directory) || !move_uploaded_file($upload['tmp_name'], $tmp_file))
 		{
 			$this->emit_error(103, 'PLUPLOAD_ERR_MOVE_UPLOADED');
 		}
@@ -371,5 +373,30 @@ class plupload
 				$this->temporary_directory . '/index.htm'
 			);
 		}
+	}
+
+	/**
+	* Sets the default directories for uploads
+	*
+	* @return null
+	*/
+	protected function set_default_directories()
+	{
+		$this->upload_directory = $this->phpbb_root_path . $this->config['upload_path'];
+		$this->temporary_directory = $this->upload_directory . '/plupload';
+	}
+
+	/**
+	* Sets the upload directories to the specified paths
+	*
+	* @param string $upload_directory Upload directory
+	* @param string $temporary_directory Temporary directory
+	*
+	* @return null
+	*/
+	public function set_upload_directories($upload_directory, $temporary_directory)
+	{
+		$this->upload_directory = $upload_directory;
+		$this->temporary_directory = $temporary_directory;
 	}
 }

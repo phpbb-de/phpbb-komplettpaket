@@ -21,21 +21,21 @@ abstract class phpbb_tests_notification_base extends phpbb_database_test_case
 	{
 		return array(
 			'test',
-			'approve_post',
-			'approve_topic',
-			'bookmark',
-			'disapprove_post',
-			'disapprove_topic',
-			'pm',
-			'post',
-			'post_in_queue',
-			'quote',
-			'report_pm',
-			'report_pm_closed',
-			'report_post',
-			'report_post_closed',
-			'topic',
-			'topic_in_queue',
+			'notification.type.approve_post',
+			'notification.type.approve_topic',
+			'notification.type.bookmark',
+			'notification.type.disapprove_post',
+			'notification.type.disapprove_topic',
+			'notification.type.pm',
+			'notification.type.post',
+			'notification.type.post_in_queue',
+			'notification.type.quote',
+			'notification.type.report_pm',
+			'notification.type.report_pm_closed',
+			'notification.type.report_post',
+			'notification.type.report_post_closed',
+			'notification.type.topic',
+			'notification.type.topic_in_queue',
 		);
 	}
 
@@ -56,7 +56,7 @@ abstract class phpbb_tests_notification_base extends phpbb_database_test_case
 			'allow_topic_notify'	=> true,
 			'allow_forum_notify'	=> true,
 		));
-		$user = $this->user = new \phpbb\user();
+		$user = $this->user = new \phpbb\user('\phpbb\datetime');
 		$this->user_loader = new \phpbb\user_loader($this->db, $phpbb_root_path, $phpEx, 'phpbb_users');
 		$auth = $this->auth = new phpbb_mock_notifications_auth();
 		$cache = $this->cache = new \phpbb\cache\service(
@@ -66,6 +66,8 @@ abstract class phpbb_tests_notification_base extends phpbb_database_test_case
 			$phpbb_root_path,
 			$phpEx
 		);
+		
+		$this->phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
 		$phpbb_container = $this->container = new phpbb_mock_container_builder();
 
@@ -75,6 +77,7 @@ abstract class phpbb_tests_notification_base extends phpbb_database_test_case
 			$this->container,
 			$this->user_loader,
 			$this->config,
+			$this->phpbb_dispatcher,
 			$this->db,
 			$this->cache,
 			$this->user,
@@ -92,10 +95,11 @@ abstract class phpbb_tests_notification_base extends phpbb_database_test_case
 		$types = array();
 		foreach ($this->get_notification_types() as $type)
 		{
-			$class = $this->build_type('phpbb\notification\type\\' . $type);
+			$type_parts = explode('.', $type);
+			$class = $this->build_type('phpbb\notification\type\\' . array_pop($type_parts));
 
 			$types[$type] = $class;
-			$this->container->set('notification.type.' . $type, $class);
+			$this->container->set($type, $class);
 		}
 
 		$this->notifications->set_var('notification_types', $types);

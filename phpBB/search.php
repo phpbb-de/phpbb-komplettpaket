@@ -101,7 +101,7 @@ if (!$auth->acl_get('u_search') || !$auth->acl_getf_global('f_search') || !$conf
 if ($user->load && $config['limit_search_load'] && ($user->load > doubleval($config['limit_search_load'])))
 {
 	$template->assign_var('S_NO_SEARCH', true);
-	trigger_error('NO_SEARCH_TIME');
+	trigger_error('NO_SEARCH_LOAD');
 }
 
 // It is applicable if the configuration setting is non-zero, and the user cannot
@@ -274,19 +274,18 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 	}
 	// We do some additional checks in the module to ensure it can actually be utilised
 	$error = false;
-	$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
+	$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
 
 	if ($error)
 	{
 		trigger_error($error);
 	}
 
-	$common_words = $search->get_common_words();
-
 	// let the search module split up the keywords
 	if ($keywords)
 	{
 		$correct_query = $search->split_keywords($keywords, $search_terms);
+		$common_words = $search->get_common_words();
 		if (!$correct_query || (!$search->get_search_query() && !sizeof($author_id_ary) && !$search_id))
 		{
 			$ignored = (sizeof($common_words)) ? sprintf($user->lang['IGNORED_TERMS_EXPLAIN'], implode(' ', $common_words)) . '<br />' : '';
@@ -311,6 +310,26 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 
 	// define some variables needed for retrieving post_id/topic_id information
 	$sort_by_sql = array('a' => 'u.username_clean', 't' => (($show_results == 'posts') ? 'p.post_time' : 't.topic_last_post_time'), 'f' => 'f.forum_id', 'i' => 't.topic_title', 's' => (($show_results == 'posts') ? 'p.post_subject' : 't.topic_title'));
+
+	/**
+	* Event to modify the SQL parameters before pre-made searches
+	*
+	* @event core.search_modify_param_before
+	* @var	string	keywords		String of the specified keywords
+	* @var	array	sort_by_sql		Array of SQL sorting instructions
+	* @var	array	ex_fid_ary		Array of excluded forum ids
+	* @var	array	author_id_ary	Array of exclusive author ids
+	* @var	string	search_id		The id of the search request
+	* @since 3.1.3-RC1
+	*/
+	$vars = array(
+		'keywords',
+		'sort_by_sql',
+		'ex_fid_ary',
+		'author_id_ary',
+		'search_id',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.search_modify_param_before', compact($vars)));
 
 	// pre-made searches
 	$sql = $field = $l_search_title = '';
@@ -554,16 +573,6 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 	// Grab icons
 	$icons = $cache->obtain_icons();
 
-	// Output header
-	if ($found_more_search_matches)
-	{
-		$l_search_matches = $user->lang('FOUND_MORE_SEARCH_MATCHES', (int) $total_match_count);
-	}
-	else
-	{
-		$l_search_matches = $user->lang('FOUND_SEARCH_MATCHES', (int) $total_match_count);
-	}
-
 	// define some vars for urls
 	// A single wildcard will make the search results look ugly
 	$hilit = phpbb_clean_search_string(str_replace(array('+', '-', '|', '(', ')', '&quot;'), ' ', $keywords));
@@ -584,44 +593,6 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 	$u_search .= (!$search_child) ? '&amp;sc=0' : '';
 	$u_search .= ($search_fields != 'all') ? '&amp;sf=' . $search_fields : '';
 	$u_search .= ($return_chars != 300) ? '&amp;ch=' . $return_chars : '';
-
-	// Check if search backend supports phrase search or not
-	$phrase_search_disabled = '';
-	if (strpos(html_entity_decode($keywords), '"') !== false && method_exists($search, 'supports_phrase_search'))
-	{
-		$phrase_search_disabled = $search->supports_phrase_search() ? false : true;
-	}
-
-	$pagination->generate_template_pagination($u_search, 'pagination', 'start', $total_match_count, $per_page, $start);
-
-	$template->assign_vars(array(
-		'SEARCH_TITLE'		=> $l_search_title,
-		'SEARCH_MATCHES'	=> $l_search_matches,
-		'SEARCH_WORDS'		=> $keywords,
-		'SEARCHED_QUERY'	=> $search->get_search_query(),
-		'IGNORED_WORDS'		=> (sizeof($common_words)) ? implode(' ', $common_words) : '',
-
-		'PHRASE_SEARCH_DISABLED'		=> $phrase_search_disabled,
-
-		'TOTAL_MATCHES'		=> $total_match_count,
-		'SEARCH_IN_RESULTS'	=> ($search_id) ? false : true,
-
-		'S_SELECT_SORT_DIR'		=> $s_sort_dir,
-		'S_SELECT_SORT_KEY'		=> $s_sort_key,
-		'S_SELECT_SORT_DAYS'	=> $s_limit_days,
-		'S_SEARCH_ACTION'		=> $u_search,
-		'S_SHOW_TOPICS'			=> ($show_results == 'posts') ? false : true,
-
-		'GOTO_PAGE_IMG'		=> $user->img('icon_post_target', 'GOTO_PAGE'),
-		'NEWEST_POST_IMG'	=> $user->img('icon_topic_newest', 'VIEW_NEWEST_POST'),
-		'REPORTED_IMG'		=> $user->img('icon_topic_reported', 'TOPIC_REPORTED'),
-		'UNAPPROVED_IMG'	=> $user->img('icon_topic_unapproved', 'TOPIC_UNAPPROVED'),
-		'DELETED_IMG'		=> $user->img('icon_topic_deleted', 'TOPIC_DELETED'),
-		'POLL_IMG'			=> $user->img('icon_topic_poll', 'TOPIC_POLL'),
-		'LAST_POST_IMG'		=> $user->img('icon_topic_latest', 'VIEW_LATEST_POST'),
-
-		'U_SEARCH_WORDS'	=> $u_search,
-	));
 
 	if ($sql_where)
 	{
@@ -740,9 +711,11 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 			* @var	string	sql_select		The SQL SELECT string used by search to get topic data
 			* @var	string	sql_from		The SQL FROM string used by search to get topic data
 			* @var	string	sql_where		The SQL WHERE string used by search to get topic data
+			* @var	int		total_match_count	The total number of search matches
 			* @since 3.1.0-a1
+			* @changed 3.1.0-RC5 Added total_match_count
 			*/
-			$vars = array('sql_select', 'sql_from', 'sql_where');
+			$vars = array('sql_select', 'sql_from', 'sql_where', 'total_match_count');
 			extract($phpbb_dispatcher->trigger_event('core.search_get_topic_data', compact($vars)));
 
 			$sql = "SELECT $sql_select
@@ -824,7 +797,7 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 		}
 		else
 		{
-			$bbcode_bitfield = $text_only_message = '';
+			$text_only_message = '';
 			$attach_list = array();
 
 			while ($row = $db->sql_fetchrow($result))
@@ -844,7 +817,6 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 				if ($return_chars == -1 || utf8_strlen($text_only_message) < ($return_chars + 3))
 				{
 					$row['display_text_only'] = false;
-					$bbcode_bitfield = $bbcode_bitfield | base64_decode($row['bbcode_bitfield']);
 
 					// Does this post have an attachment? If so, add it to the list
 					if ($row['post_attachment'] && $config['allow_attachments'])
@@ -863,13 +835,6 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 			$db->sql_freeresult($result);
 
 			unset($text_only_message);
-
-			// Instantiate BBCode if needed
-			if ($bbcode_bitfield !== '')
-			{
-				include_once($phpbb_root_path . 'includes/bbcode.' . $phpEx);
-				$bbcode = new bbcode(base64_encode($bbcode_bitfield));
-			}
 
 			// Pull attachment data
 			if (sizeof($attach_list))
@@ -969,7 +934,7 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 				$posts_unapproved = ($row['topic_visibility'] == ITEM_APPROVED && $row['topic_posts_unapproved'] && $auth->acl_get('m_approve', $forum_id)) ? true : false;
 				$topic_deleted = $row['topic_visibility'] == ITEM_DELETED;
 				$u_mcp_queue = ($topic_unapproved || $posts_unapproved) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue&amp;mode=' . (($topic_unapproved) ? 'approve_details' : 'unapproved_posts') . "&amp;t=$result_topic_id", true, $user->session_id) : '';
-				$u_mcp_queue = (!$u_mcp_queue && $topic_deleted) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "i=queue&amp;mode=deleted_topics&amp;t=$result_topic_id", true, $user->session_id) : '';
+				$u_mcp_queue = (!$u_mcp_queue && $topic_deleted) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "i=queue&amp;mode=deleted_topics&amp;t=$result_topic_id", true, $user->session_id) : $u_mcp_queue;
 
 				$row['topic_title'] = preg_replace('#(?!<.*)(?<!\w)(' . $hilit . ')(?!\w|[^<>]*(?:</s(?:cript|tyle))?>)#is', '<span class="posthilit">$1</span>', $row['topic_title']);
 
@@ -1149,6 +1114,79 @@ if ($keywords || $author || $author_id || $search_id || $submit)
 		}
 	}
 	unset($rowset);
+
+	// Output header
+	if ($found_more_search_matches)
+	{
+		$l_search_matches = $user->lang('FOUND_MORE_SEARCH_MATCHES', (int) $total_match_count);
+	}
+	else
+	{
+		$l_search_matches = $user->lang('FOUND_SEARCH_MATCHES', (int) $total_match_count);
+	}
+
+	// Check if search backend supports phrase search or not
+	$phrase_search_disabled = '';
+	if (strpos(html_entity_decode($keywords), '"') !== false && method_exists($search, 'supports_phrase_search'))
+	{
+		$phrase_search_disabled = $search->supports_phrase_search() ? false : true;
+	}
+
+	$pagination->generate_template_pagination($u_search, 'pagination', 'start', $total_match_count, $per_page, $start);
+
+	$template->assign_vars(array(
+		'SEARCH_TITLE'		=> $l_search_title,
+		'SEARCH_MATCHES'	=> $l_search_matches,
+		'SEARCH_WORDS'		=> $keywords,
+		'SEARCHED_QUERY'	=> $search->get_search_query(),
+		'IGNORED_WORDS'		=> (!empty($common_words)) ? implode(' ', $common_words) : '',
+
+		'PHRASE_SEARCH_DISABLED'		=> $phrase_search_disabled,
+
+		'TOTAL_MATCHES'		=> $total_match_count,
+		'SEARCH_IN_RESULTS'	=> ($search_id) ? false : true,
+
+		'S_SELECT_SORT_DIR'		=> $s_sort_dir,
+		'S_SELECT_SORT_KEY'		=> $s_sort_key,
+		'S_SELECT_SORT_DAYS'	=> $s_limit_days,
+		'S_SEARCH_ACTION'		=> $u_search,
+		'S_SHOW_TOPICS'			=> ($show_results == 'posts') ? false : true,
+
+		'GOTO_PAGE_IMG'		=> $user->img('icon_post_target', 'GOTO_PAGE'),
+		'NEWEST_POST_IMG'	=> $user->img('icon_topic_newest', 'VIEW_NEWEST_POST'),
+		'REPORTED_IMG'		=> $user->img('icon_topic_reported', 'TOPIC_REPORTED'),
+		'UNAPPROVED_IMG'	=> $user->img('icon_topic_unapproved', 'TOPIC_UNAPPROVED'),
+		'DELETED_IMG'		=> $user->img('icon_topic_deleted', 'TOPIC_DELETED'),
+		'POLL_IMG'			=> $user->img('icon_topic_poll', 'TOPIC_POLL'),
+		'LAST_POST_IMG'		=> $user->img('icon_topic_latest', 'VIEW_LATEST_POST'),
+
+		'U_SEARCH_WORDS'	=> $u_search,
+	));
+
+	/**
+	* Modify the title and/or load data for the search results page
+	*
+	* @event core.search_results_modify_search_title
+	* @var	int		author_id			ID of the author to search by
+	* @var	string	l_search_title		The title of the search page
+	* @var	string	search_id			Predefined search type name
+	* @var	string	show_results		Search results output mode - topics or posts
+	* @var	int		start				The starting id of the results
+	* @var	int		total_match_count	The count of search results
+	* @var	string	keywords			The search keywords
+	* @since 3.1.0-RC4
+	* @changed 3.1.6-RC1 Added total_match_count and keywords
+	*/
+	$vars = array(
+		'author_id',
+		'l_search_title',
+		'search_id',
+		'show_results',
+		'start',
+		'total_match_count',
+		'keywords',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.search_results_modify_search_title', compact($vars)));
 
 	page_header(($l_search_title) ? $l_search_title : $user->lang['SEARCH']);
 

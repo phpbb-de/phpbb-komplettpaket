@@ -161,9 +161,13 @@ class mcp_main
 				* This event allows you to handle custom quickmod options
 				*
 				* @event core.modify_quickmod_actions
+				* @var	string	action		Topic quick moderation action name
+				* @var	bool	quickmod	Flag indicating whether MCP is in quick moderation mode
 				* @since 3.1.0-a4
+				* @change 3.1.0-RC4 Added variables: action, quickmod
 				*/
-				$phpbb_dispatcher->dispatch('core.modify_quickmod_actions');
+				$vars = array('action', 'quickmod');
+				extract($phpbb_dispatcher->trigger_event('core.modify_quickmod_actions', compact($vars)));
 			break;
 		}
 
@@ -222,6 +226,31 @@ class mcp_main
 			break;
 
 			default:
+				if ($quickmod)
+				{
+					switch ($action)
+					{
+						case 'lock':
+						case 'unlock':
+						case 'make_announce':
+						case 'make_sticky':
+						case 'make_global':
+						case 'make_normal':
+						case 'make_onindex':
+						case 'move':
+						case 'fork':
+						case 'delete_topic':
+							trigger_error('TOPIC_NOT_EXIST');
+						break;
+
+						case 'lock_post':
+						case 'unlock_post':
+						case 'delete_post':
+							trigger_error('POST_NOT_EXIST');
+						break;
+					}
+				}
+
 				trigger_error('NO_MODE', E_USER_ERROR);
 			break;
 		}
@@ -750,7 +779,8 @@ function mcp_delete_topic($topic_ids, $is_soft = false, $soft_delete_reason = ''
 {
 	global $auth, $user, $db, $phpEx, $phpbb_root_path, $request, $phpbb_container;
 
-	if (!phpbb_check_ids($topic_ids, TOPICS_TABLE, 'topic_id', array('m_delete')))
+	$check_permission = ($is_soft) ? 'm_softdelete' : 'm_delete';
+	if (!phpbb_check_ids($topic_ids, TOPICS_TABLE, 'topic_id', array($check_permission)))
 	{
 		return;
 	}
@@ -808,8 +838,17 @@ function mcp_delete_topic($topic_ids, $is_soft = false, $soft_delete_reason = ''
 
 		$user->add_lang('posting');
 
+		// If there are only shadow topics, we neither need a reason nor softdelete
+		$sql = 'SELECT topic_id
+			FROM ' . TOPICS_TABLE . '
+			WHERE ' . $db->sql_in_set('topic_id', $topic_ids) . '
+				AND topic_moved_id = 0';
+		$result = $db->sql_query_limit($sql, 1);
+		$only_shadow = !$db->sql_fetchfield('topic_id');
+		$db->sql_freeresult($result);
+
 		$only_softdeleted = false;
-		if ($auth->acl_get('m_delete', $forum_id) && $auth->acl_get('m_softdelete', $forum_id))
+		if (!$only_shadow && $auth->acl_get('m_delete', $forum_id) && $auth->acl_get('m_softdelete', $forum_id))
 		{
 			// If there are only soft deleted topics, we display a message why the option is not available
 			$sql = 'SELECT topic_id
@@ -822,6 +861,7 @@ function mcp_delete_topic($topic_ids, $is_soft = false, $soft_delete_reason = ''
 		}
 
 		$template->assign_vars(array(
+			'S_SHADOW_TOPICS'		=> $only_shadow,
 			'S_SOFTDELETED'			=> $only_softdeleted,
 			'S_TOPIC_MODE'			=> true,
 			'S_ALLOWED_DELETE'		=> $auth->acl_get('m_delete', $forum_id),
@@ -834,7 +874,7 @@ function mcp_delete_topic($topic_ids, $is_soft = false, $soft_delete_reason = ''
 			$l_confirm .= '_PERMANENTLY';
 			$s_hidden_fields['delete_permanent'] = '1';
 		}
-		else if (!$auth->acl_get('m_softdelete', $forum_id))
+		else if ($only_shadow || !$auth->acl_get('m_softdelete', $forum_id))
 		{
 			$s_hidden_fields['delete_permanent'] = '1';
 		}
@@ -878,7 +918,8 @@ function mcp_delete_post($post_ids, $is_soft = false, $soft_delete_reason = '', 
 {
 	global $auth, $user, $db, $phpEx, $phpbb_root_path, $request, $phpbb_container;
 
-	if (!phpbb_check_ids($post_ids, POSTS_TABLE, 'post_id', array('m_softdelete')))
+	$check_permission = ($is_soft) ? 'm_softdelete' : 'm_delete';
+	if (!phpbb_check_ids($post_ids, POSTS_TABLE, 'post_id', array($check_permission)))
 	{
 		return;
 	}
@@ -1103,7 +1144,7 @@ function mcp_delete_post($post_ids, $is_soft = false, $soft_delete_reason = '', 
 function mcp_fork_topic($topic_ids)
 {
 	global $auth, $user, $db, $template, $config;
-	global $phpEx, $phpbb_root_path;
+	global $phpEx, $phpbb_root_path, $phpbb_dispatcher;
 
 	if (!phpbb_check_ids($topic_ids, TOPICS_TABLE, 'topic_id', array('m_')))
 	{
@@ -1114,6 +1155,7 @@ function mcp_fork_topic($topic_ids)
 	$forum_id = request_var('f', 0);
 	$redirect = request_var('redirect', build_url(array('action', 'quickmod')));
 	$additional_msg = $success_msg = '';
+	$counter = array();
 
 	$s_hidden_fields = build_hidden_fields(array(
 		'topic_id_list'	=> $topic_ids,
@@ -1180,7 +1222,7 @@ function mcp_fork_topic($topic_ids)
 				}
 
 				$error = false;
-				$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
+				$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
 				$search_mode = 'post';
 
 				if ($error)
@@ -1259,12 +1301,13 @@ function mcp_fork_topic($topic_ids)
 
 					$db->sql_query('INSERT INTO ' . POLL_OPTIONS_TABLE . ' ' . $db->sql_build_array('INSERT', $sql_ary));
 				}
+				$db->sql_freeresult($result);
 			}
 
 			$sql = 'SELECT *
 				FROM ' . POSTS_TABLE . "
 				WHERE topic_id = $topic_id
-				ORDER BY post_time ASC";
+				ORDER BY post_time ASC, post_id ASC";
 			$result = $db->sql_query($sql);
 
 			$post_rows = array();
@@ -1306,9 +1349,20 @@ function mcp_fork_topic($topic_ids)
 					'post_edit_time'	=> (int) $row['post_edit_time'],
 					'post_edit_count'	=> (int) $row['post_edit_count'],
 					'post_edit_locked'	=> (int) $row['post_edit_locked'],
-					'post_postcount'	=> 0,
+					'post_postcount'	=> $row['post_postcount'],
 				);
-
+				// Adjust post count only if the post can be incremented to the user counter
+				if ($row['post_postcount'])
+				{
+					if (isset($counter[$row['poster_id']]))
+					{
+						++$counter[$row['poster_id']];
+					}
+					else
+					{
+						$counter[$row['poster_id']] = 1;
+					}
+				}
 				$db->sql_query('INSERT INTO ' . POSTS_TABLE . ' ' . $db->sql_build_array('INSERT', $sql_ary));
 				$new_post_id = $db->sql_nextid();
 
@@ -1427,6 +1481,18 @@ function mcp_fork_topic($topic_ids)
 				forum_topics_softdeleted = forum_topics_softdeleted + ' . $total_topics_softdeleted . '
 			WHERE forum_id = ' . $to_forum_id;
 		$db->sql_query($sql);
+
+		if (!empty($counter))
+		{
+			// Do only one query per user and not a query per post.
+			foreach ($counter as $user_id => $count)
+			{
+				$sql = 'UPDATE ' . USERS_TABLE . '
+					SET user_posts = user_posts + ' . (int) $count . '
+					WHERE user_id = ' . (int) $user_id;
+				$db->sql_query($sql);
+			}
+		}
 
 		sync('topic', 'topic_id', $new_topic_id_list);
 		sync('forum', 'forum_id', $to_forum_id);

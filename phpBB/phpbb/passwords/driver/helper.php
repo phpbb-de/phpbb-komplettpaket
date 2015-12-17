@@ -142,4 +142,36 @@ class helper
 		}
 		return $random;
 	}
+
+	/**
+	 * Compare two strings byte by byte
+	 *
+	 * @param string $string_a The first string
+	 * @param string $string_b The second string
+	 *
+	 * @return bool True if strings are the same, false if not
+	 */
+	public function string_compare($string_a, $string_b)
+	{
+		// Return if input variables are not strings or if length does not match
+		if (!is_string($string_a) || !is_string($string_b) || strlen($string_a) != strlen($string_b))
+		{
+			return false;
+		}
+
+		// Use hash_equals() if it's available
+		if (function_exists('hash_equals'))
+		{
+			return hash_equals($string_a, $string_b);
+		}
+
+		$difference = 0;
+
+		for ($i = 0; $i < strlen($string_a) && $i < strlen($string_b); $i++)
+		{
+			$difference |= ord($string_a[$i]) ^ ord($string_b[$i]);
+		}
+
+		return $difference === 0;
+	}
 }

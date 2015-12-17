@@ -13,11 +13,19 @@
 
 namespace phpbb\db;
 
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+
 /**
 * The migrator is responsible for applying new migrations in the correct order.
 */
 class migrator
 {
+	/**
+	 * @var ContainerInterface
+	 */
+	protected $container;
+
 	/** @var \phpbb\config\config */
 	protected $config;
 
@@ -59,6 +67,13 @@ class migrator
 	protected $migrations = array();
 
 	/**
+	* Array of migrations that have been determined to be fulfillable
+	*
+	* @var array
+	*/
+	protected $fulfillable_migrations = array();
+
+	/**
 	* 'name,' 'class,' and 'state' of the last migration run
 	*
 	* 'effectively_installed' set and set to true if the migration was effectively_installed
@@ -68,10 +83,18 @@ class migrator
 	public $last_run_migration = false;
 
 	/**
+	 * The output handler. A null handler is configured by default.
+	 *
+	 * @var migrator_output_handler_interface
+	 */
+	public $output_handler;
+
+	/**
 	* Constructor of the database migrator
 	*/
-	public function __construct(\phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\db\tools $db_tools, $migrations_table, $phpbb_root_path, $php_ext, $table_prefix, $tools, \phpbb\db\migration\helper $helper)
+	public function __construct(ContainerInterface $container, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\db\tools $db_tools, $migrations_table, $phpbb_root_path, $php_ext, $table_prefix, $tools, \phpbb\db\migration\helper $helper)
 	{
+		$this->container = $container;
 		$this->config = $config;
 		$this->db = $db;
 		$this->db_tools = $db_tools;
@@ -84,6 +107,8 @@ class migrator
 
 		$this->table_prefix = $table_prefix;
 
+		$this->output_handler = new null_migrator_output_handler();
+
 		foreach ($tools as $tool)
 		{
 			$this->tools[$tool->get_name()] = $tool;
@@ -92,6 +117,16 @@ class migrator
 		$this->tools['dbtools'] = $this->db_tools;
 
 		$this->load_migration_state();
+	}
+
+	/**
+	 * Set the output handler.
+	 *
+	 * @param migrator_output_handler $handler The output handler
+	 */
+	public function set_output_handler(migrator_output_handler_interface $handler)
+	{
+		$this->output_handler = $handler;
 	}
 
 	/**
@@ -146,6 +181,18 @@ class migrator
 	*/
 	public function update()
 	{
+		$this->container->get('dispatcher')->disable();
+		$this->update_do();
+		$this->container->get('dispatcher')->enable();
+	}
+
+	/**
+	 * Effectively runs a single update step from the next migration to be applied.
+	 *
+	 * @return null
+	 */
+	protected function update_do()
+	{
 		foreach ($this->migrations as $name)
 		{
 			if (!isset($this->migration_state[$name]) ||
@@ -161,6 +208,10 @@ class migrator
 					return;
 				}
 			}
+			else
+			{
+				$this->output_handler->write(array('MIGRATION_EFFECTIVELY_INSTALLED', $name), migrator_output_handler_interface::VERBOSITY_DEBUG);
+			}
 		}
 	}
 
@@ -175,6 +226,7 @@ class migrator
 	{
 		if (!class_exists($name))
 		{
+			$this->output_handler->write(array('MIGRATION_NOT_VALID', $name), migrator_output_handler_interface::VERBOSITY_DEBUG);
 			return false;
 		}
 
@@ -190,6 +242,11 @@ class migrator
 				'migration_start_time'	=> 0,
 				'migration_end_time'	=> 0,
 			);
+
+		if (!empty($state['migration_depends_on']))
+		{
+			$this->output_handler->write(array('MIGRATION_APPLY_DEPENDENCIES', $name), migrator_output_handler_interface::VERBOSITY_DEBUG);
+		}
 
 		foreach ($state['migration_depends_on'] as $depend)
 		{
@@ -227,6 +284,8 @@ class migrator
 				);
 
 				$this->last_run_migration['effectively_installed'] = true;
+
+				$this->output_handler->write(array('MIGRATION_EFFECTIVELY_INSTALLED', $name), migrator_output_handler_interface::VERBOSITY_VERBOSE);
 			}
 			else
 			{
@@ -238,28 +297,48 @@ class migrator
 
 		if (!$state['migration_schema_done'])
 		{
+			$this->output_handler->write(array('MIGRATION_SCHEMA_RUNNING', $name), migrator_output_handler_interface::VERBOSITY_VERBOSE);
+
 			$this->last_run_migration['task'] = 'process_schema_step';
+			$elapsed_time = microtime(true);
 			$steps = $this->helper->get_schema_steps($migration->update_schema());
 			$result = $this->process_data_step($steps, $state['migration_data_state']);
+			$elapsed_time = microtime(true) - $elapsed_time;
 
 			$state['migration_data_state'] = ($result === true) ? '' : $result;
 			$state['migration_schema_done'] = ($result === true);
+
+			$this->output_handler->write(array('MIGRATION_SCHEMA_DONE', $name, $elapsed_time), migrator_output_handler_interface::VERBOSITY_NORMAL);
 		}
 		else if (!$state['migration_data_done'])
 		{
 			try
 			{
+				$this->output_handler->write(array('MIGRATION_DATA_RUNNING', $name), migrator_output_handler_interface::VERBOSITY_VERBOSE);
+
 				$this->last_run_migration['task'] = 'process_data_step';
+
+				$elapsed_time = microtime(true);
 				$result = $this->process_data_step($migration->update_data(), $state['migration_data_state']);
+				$elapsed_time = microtime(true) - $elapsed_time;
 
 				$state['migration_data_state'] = ($result === true) ? '' : $result;
 				$state['migration_data_done'] = ($result === true);
 				$state['migration_end_time'] = ($result === true) ? time() : 0;
+
+				if ($state['migration_schema_done'])
+				{
+					$this->output_handler->write(array('MIGRATION_DATA_DONE', $name, $elapsed_time), migrator_output_handler_interface::VERBOSITY_NORMAL);
+				}
+				else
+				{
+					$this->output_handler->write(array('MIGRATION_DATA_IN_PROGRESS', $name, $elapsed_time), migrator_output_handler_interface::VERBOSITY_VERY_VERBOSE);
+				}
 			}
 			catch (\phpbb\db\migration\exception $e)
 			{
 				// Revert the schema changes
-				$this->revert($name);
+				$this->revert_do($name);
 
 				// Rethrow exception
 				throw $e;
@@ -279,9 +358,21 @@ class migrator
 	* check if revert() needs to be called again use the migration_state() method.
 	*
 	* @param string $migration String migration name to revert (including any that depend on this migration)
-	* @return null
 	*/
 	public function revert($migration)
+	{
+		$this->container->get('dispatcher')->disable();
+		$this->revert_do($migration);
+		$this->container->get('dispatcher')->enable();
+	}
+
+	/**
+	 * Effectively runs a single revert step from the last migration installed
+	 *
+	 * @param string $migration String migration name to revert (including any that depend on this migration)
+	 * @return null
+	 */
+	protected function revert_do($migration)
 	{
 		if (!isset($this->migration_state[$migration]))
 		{
@@ -293,7 +384,7 @@ class migrator
 		{
 			if (!empty($state['migration_depends_on']) && in_array($migration, $state['migration_depends_on']))
 			{
-				$this->revert($name);
+				$this->revert_do($name);
 			}
 		}
 
@@ -602,7 +693,7 @@ class migrator
 	*/
 	public function unfulfillable($name)
 	{
-		if (isset($this->migration_state[$name]))
+		if (isset($this->migration_state[$name]) || isset($this->fulfillable_migrations[$name]))
 		{
 			return false;
 		}
@@ -623,6 +714,7 @@ class migrator
 				return $unfulfillable;
 			}
 		}
+		$this->fulfillable_migrations[$name] = true;
 
 		return false;
 	}
@@ -683,7 +775,14 @@ class migrator
 	*/
 	protected function get_migration($name)
 	{
-		return new $name($this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix);
+		$migration = new $name($this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix);
+
+		if ($migration instanceof ContainerAwareInterface)
+		{
+			$migration->setContainer($this->container);
+		}
+
+		return $migration;
 	}
 
 	/**
@@ -715,56 +814,26 @@ class migrator
 	}
 
 	/**
-	* Load migration data files from a directory
-	*
-	* @param \phpbb\finder $finder
-	* @param string $path Path to migration data files
-	* @param bool $check_fulfillable If TRUE (default), we will check
-	* 	if all of the migrations are fulfillable after loading them.
-	* 	If FALSE, we will not check. You SHOULD check at least once
-	* 	to prevent errors (if including multiple directories, check
-	* 	with the last call to prevent throwing errors unnecessarily).
-	* @return array Array of migration names
-	* @throws \phpbb\db\migration\exception
+	* Creates the migrations table if it does not exist.
+	* @return null
 	*/
-	public function load_migrations(\phpbb\finder $finder, $path, $check_fulfillable = true)
+	public function create_migrations_table()
 	{
-		if (!is_dir($path))
+		// Make sure migrations have been installed.
+		if (!$this->db_tools->sql_table_exists($this->table_prefix . 'migrations'))
 		{
-			throw new \phpbb\db\migration\exception('DIRECTORY INVALID', $path);
+			$this->db_tools->sql_create_table($this->table_prefix . 'migrations', array(
+				'COLUMNS'		=> array(
+					'migration_name'			=> array('VCHAR', ''),
+					'migration_depends_on'		=> array('TEXT', ''),
+					'migration_schema_done'		=> array('BOOL', 0),
+					'migration_data_done'		=> array('BOOL', 0),
+					'migration_data_state'		=> array('TEXT', ''),
+					'migration_start_time'		=> array('TIMESTAMP', 0),
+					'migration_end_time'		=> array('TIMESTAMP', 0),
+				),
+				'PRIMARY_KEY'	=> 'migration_name',
+			));
 		}
-
-		$migrations = array();
-
-		$files = $finder
-			->extension_directory("/")
-			->find_from_paths(array('/' => $path));
-		foreach ($files as $file)
-		{
-			$migrations[$file['path'] . $file['filename']] = '';
-		}
-		$migrations = $finder->get_classes_from_files($migrations);
-
-		foreach ($migrations as $migration)
-		{
-			if (!in_array($migration, $this->migrations))
-			{
-				$this->migrations[] = $migration;
-			}
-		}
-
-		if ($check_fulfillable)
-		{
-			foreach ($this->migrations as $name)
-			{
-				$unfulfillable = $this->unfulfillable($name);
-				if ($unfulfillable !== false)
-				{
-					throw new \phpbb\db\migration\exception('MIGRATION_NOT_FULFILLABLE', $name, $unfulfillable);
-				}
-			}
-		}
-
-		return $this->migrations;
 	}
 }

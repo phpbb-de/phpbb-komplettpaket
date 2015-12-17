@@ -26,6 +26,7 @@ function mcp_front_view($id, $mode, $action)
 {
 	global $phpEx, $phpbb_root_path, $config;
 	global $template, $db, $user, $auth, $module;
+	global $phpbb_dispatcher;
 
 	// Latest 5 unapproved
 	if ($module->loaded('queue'))
@@ -40,10 +41,27 @@ function mcp_front_view($id, $mode, $action)
 
 		if (!empty($forum_list))
 		{
-			$sql = 'SELECT COUNT(post_id) AS total
-				FROM ' . POSTS_TABLE . '
-				WHERE ' . $db->sql_in_set('forum_id', $forum_list) . '
-					AND ' . $db->sql_in_set('post_visibility', array(ITEM_UNAPPROVED, ITEM_REAPPROVE));
+			$sql_ary = array(
+				'SELECT' => 'COUNT(post_id) AS total',
+				'FROM' => array(
+						POSTS_TABLE => 'p',
+					),
+				'WHERE' => $db->sql_in_set('p.forum_id', $forum_list) . '
+					AND ' . $db->sql_in_set('p.post_visibility', array(ITEM_UNAPPROVED, ITEM_REAPPROVE))
+			);
+
+			/**
+			* Allow altering the query to get the number of unapproved posts
+			*
+			* @event core.mcp_front_queue_unapproved_total_before
+			* @var	int		sql_ary						Query to get the total number of unapproved posts
+			* @var	array	forum_list					List of forums to look for unapproved posts
+			* @since 3.1.5-RC1
+			*/
+			$vars = array('sql_ary', 'forum_list');
+			extract($phpbb_dispatcher->trigger_event('core.mcp_front_queue_unapproved_total_before', compact($vars)));
+
+			$sql = $db->sql_build_query('SELECT', $sql_ary);
 			$result = $db->sql_query($sql);
 			$total = (int) $db->sql_fetchfield('total');
 			$db->sql_freeresult($result);
@@ -65,7 +83,7 @@ function mcp_front_view($id, $mode, $action)
 					FROM ' . POSTS_TABLE . '
 					WHERE ' . $db->sql_in_set('forum_id', $forum_list) . '
 						AND ' . $db->sql_in_set('post_visibility', array(ITEM_UNAPPROVED, ITEM_REAPPROVE)) . '
-					ORDER BY post_time DESC';
+					ORDER BY post_time DESC, post_id DESC';
 				$result = $db->sql_query_limit($sql, 5);
 
 				while ($row = $db->sql_fetchrow($result))
@@ -80,6 +98,19 @@ function mcp_front_view($id, $mode, $action)
 				}
 			}
 
+			/**
+			* Alter list of posts and total as required
+			*
+			* @event core.mcp_front_view_queue_postid_list_after
+			* @var	int		total						Number of unapproved posts
+			* @var	array	post_list					List of unapproved posts
+			* @var	array	forum_list					List of forums that contain the posts
+			* @var	array	forum_names					Associative array with forum_id as key and it's corresponding forum_name as value
+			* @since 3.1.0-RC3
+			*/
+			$vars = array('total', 'post_list', 'forum_list', 'forum_names');
+			extract($phpbb_dispatcher->trigger_event('core.mcp_front_view_queue_postid_list_after', compact($vars)));
+
 			if ($total)
 			{
 				$sql = 'SELECT p.post_id, p.post_subject, p.post_time, p.post_attachment, p.poster_id, p.post_username, u.username, u.username_clean, u.user_colour, t.topic_id, t.topic_title, t.topic_first_post_id, p.forum_id
@@ -87,7 +118,7 @@ function mcp_front_view($id, $mode, $action)
 					WHERE ' . $db->sql_in_set('p.post_id', $post_list) . '
 						AND t.topic_id = p.topic_id
 						AND p.poster_id = u.user_id
-					ORDER BY p.post_time DESC';
+					ORDER BY p.post_time DESC, p.post_id DESC';
 				$result = $db->sql_query($sql);
 
 				while ($row = $db->sql_fetchrow($result))
@@ -143,6 +174,18 @@ function mcp_front_view($id, $mode, $action)
 					AND r.pm_id = 0
 					AND r.report_closed = 0
 					AND ' . $db->sql_in_set('p.forum_id', $forum_list);
+
+			/**
+			* Alter sql query to count the number of reported posts
+			*
+			* @event core.mcp_front_reports_count_query_before
+			* @var	int		sql				The query string used to get the number of reports that exist
+			* @var	array	forum_list		List of forums that contain the posts
+			* @since 3.1.5-RC1
+			*/
+			$vars = array('sql', 'forum_list');
+			extract($phpbb_dispatcher->trigger_event('core.mcp_front_reports_count_query_before', compact($vars)));
+
 			$result = $db->sql_query($sql);
 			$total = (int) $db->sql_fetchfield('total');
 			$db->sql_freeresult($result);
@@ -176,8 +219,20 @@ function mcp_front_view($id, $mode, $action)
 						AND p.poster_id = u2.user_id
 						AND ' . $db->sql_in_set('p.forum_id', $forum_list),
 
-					'ORDER_BY'	=> 'p.post_time DESC',
+					'ORDER_BY'	=> 'p.post_time DESC, p.post_id DESC',
 				);
+
+				/**
+				* Alter sql query to get latest reported posts
+				*
+				* @event core.mcp_front_reports_listing_query_before
+				* @var	int		sql_ary						Associative array with the query to be executed
+				* @var	array	forum_list					List of forums that contain the posts
+				* @since 3.1.0-RC3
+				*/
+				$vars = array('sql_ary', 'forum_list');
+				extract($phpbb_dispatcher->trigger_event('core.mcp_front_reports_listing_query_before', compact($vars)));
+
 				$sql = $db->sql_build_query('SELECT', $sql_ary);
 				$result = $db->sql_query_limit($sql, 5);
 
@@ -208,6 +263,7 @@ function mcp_front_view($id, $mode, $action)
 						'ATTACH_ICON_IMG'	=> ($auth->acl_get('u_download') && $auth->acl_get('f_download', $row['forum_id']) && $row['post_attachment']) ? $user->img('icon_topic_attach', $user->lang['TOTAL_ATTACHMENTS']) : '',
 					));
 				}
+				$db->sql_freeresult($result);
 			}
 
 			$template->assign_vars(array(
@@ -264,6 +320,7 @@ function mcp_front_view($id, $mode, $action)
 				$pm_by_id[(int) $row['msg_id']] = $row;
 				$pm_list[] = (int) $row['msg_id'];
 			}
+			$db->sql_freeresult($result);
 
 			$address_list = get_recipient_strings($pm_by_id);
 

@@ -27,7 +27,7 @@ class report_post_closed extends \phpbb\notification\type\post
 	*/
 	public function get_type()
 	{
-		return 'report_post_closed';
+		return 'notification.type.report_post_closed';
 	}
 
 	/**
@@ -59,7 +59,8 @@ class report_post_closed extends \phpbb\notification\type\post
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $post Data from
+	* @param array $post Data from submit_post
+	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/
@@ -136,7 +137,7 @@ class report_post_closed extends \phpbb\notification\type\post
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->get_data('closer_id'));
+		return $this->user_loader->get_avatar($this->get_data('closer_id'), false, true);
 	}
 
 	/**

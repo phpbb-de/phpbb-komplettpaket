@@ -27,7 +27,7 @@ class approve_topic extends \phpbb\notification\type\topic
 	*/
 	public function get_type()
 	{
-		return 'approve_topic';
+		return 'notification.type.approve_topic';
 	}
 
 	/**
@@ -67,7 +67,8 @@ class approve_topic extends \phpbb\notification\type\topic
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $post Data from
+	* @param array $post Data from submit_post
+	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/
@@ -80,14 +81,7 @@ class approve_topic extends \phpbb\notification\type\topic
 		$users = array();
 		$users[$post['poster_id']] = array('');
 
-		$auth_read = $this->auth->acl_get_list(array_keys($users), 'f_read', $post['forum_id']);
-
-		if (empty($auth_read))
-		{
-			return array();
-		}
-
-		return $this->check_user_notification_options($auth_read[$post['forum_id']]['f_read'], array_merge($options, array(
+		return $this->get_authorised_recipients(array_keys($users), $post['forum_id'], array_merge($options, array(
 			'item_type'		=> self::$notification_option['id'],
 		)));
 	}

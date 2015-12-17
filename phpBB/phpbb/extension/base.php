@@ -35,11 +35,15 @@ class base implements \phpbb\extension\extension_interface
 	/** @var string */
 	protected $extension_path;
 
+	/** @var string[] */
+	private $migrations = false;
+
 	/**
 	* Constructor
 	*
 	* @param ContainerInterface $container Container object
 	* @param \phpbb\finder $extension_finder
+	* @param \phpbb\db\migrator $migrator
 	* @param string $extension_name Name of this extension (from ext.manager)
 	* @param string $extension_path Relative path to this extension
 	*/
@@ -51,6 +55,14 @@ class base implements \phpbb\extension\extension_interface
 
 		$this->extension_name = $extension_name;
 		$this->extension_path = $extension_path;
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
+	public function is_enableable()
+	{
+		return true;
 	}
 
 	/**
@@ -113,17 +125,16 @@ class base implements \phpbb\extension\extension_interface
 	*/
 	protected function get_migration_file_list()
 	{
-		static $migrations = false;
-
-		if ($migrations !== false)
+		if ($this->migrations !== false)
 		{
-			return $migrations;
+			return $this->migrations;
 		}
 
 		// Only have the finder search in this extension path directory
 		$migrations = $this->extension_finder
 			->extension_directory('/migrations')
 			->find_from_extension($this->extension_name, $this->extension_path);
+
 		$migrations = $this->extension_finder->get_classes_from_files($migrations);
 
 		return $migrations;

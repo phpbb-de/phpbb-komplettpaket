@@ -26,7 +26,7 @@ class acp_main
 	function main($id, $mode)
 	{
 		global $config, $db, $cache, $user, $auth, $template, $request;
-		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $phpbb_container;
+		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $phpbb_container, $phpbb_dispatcher;
 
 		// Show restore permissions notice
 		if ($user->data['user_perm_from'] && $auth->acl_get('a_switchperm'))
@@ -445,6 +445,14 @@ class acp_main
 			));
 		}
 
+		/**
+		* Notice admin
+		*
+		* @event core.acp_main_notice
+		* @since 3.1.0-RC3
+		*/
+		$phpbb_dispatcher->dispatch('core.acp_main_notice');
+
 		// Get forum statistics
 		$total_posts = $config['num_posts'];
 		$total_topics = $config['num_topics'];
@@ -624,7 +632,7 @@ class acp_main
 		{
 			$error = false;
 			$search_type = $config['search_type'];
-			$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
+			$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
 
 			if (!$search->index_created())
 			{
@@ -647,8 +655,8 @@ class acp_main
 				'S_MBSTRING_LOADED'						=> true,
 				'S_MBSTRING_FUNC_OVERLOAD_FAIL'			=> (intval(@ini_get('mbstring.func_overload')) & (MB_OVERLOAD_MAIL | MB_OVERLOAD_STRING)),
 				'S_MBSTRING_ENCODING_TRANSLATION_FAIL'	=> (@ini_get('mbstring.encoding_translation') != 0),
-				'S_MBSTRING_HTTP_INPUT_FAIL'			=> (@ini_get('mbstring.http_input') != 'pass'),
-				'S_MBSTRING_HTTP_OUTPUT_FAIL'			=> (@ini_get('mbstring.http_output') != 'pass'),
+				'S_MBSTRING_HTTP_INPUT_FAIL'			=> !in_array(@ini_get('mbstring.http_input'), array('pass', '')),
+				'S_MBSTRING_HTTP_OUTPUT_FAIL'			=> !in_array(@ini_get('mbstring.http_output'), array('pass', '')),
 			));
 		}
 

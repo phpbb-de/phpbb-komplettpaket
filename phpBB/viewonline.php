@@ -86,10 +86,26 @@ if ($mode == 'whois' && $auth->acl_get('a_') && $session_id)
 }
 
 // Forum info
-$sql = 'SELECT forum_id, forum_name, parent_id, forum_type, left_id, right_id
-	FROM ' . FORUMS_TABLE . '
-	ORDER BY left_id ASC';
-$result = $db->sql_query($sql, 600);
+$sql_ary = array(
+	'SELECT'	=> 'f.forum_id, f.forum_name, f.parent_id, f.forum_type, f.left_id, f.right_id',
+	'FROM'		=> array(
+		FORUMS_TABLE	=> 'f',
+	),
+	'ORDER_BY'	=> 'f.left_id ASC',
+);
+
+/**
+* Modify the forum data SQL query for getting additional fields if needed
+*
+* @event core.viewonline_modify_forum_data_sql
+* @var	array	sql_ary			The SQL array
+* @since 3.1.5-RC1
+*/
+$vars = array('sql_ary');
+extract($phpbb_dispatcher->trigger_event('core.viewonline_modify_forum_data_sql', compact($vars)));
+
+$result = $db->sql_query($db->sql_build_query('SELECT', $sql_ary), 600);
+unset($sql_ary);
 
 $forum_data = array();
 while ($row = $db->sql_fetchrow($result))
@@ -295,8 +311,21 @@ while ($row = $db->sql_fetchrow($result))
 		break;
 
 		case 'memberlist':
-			$location = (strpos($row['session_page'], 'mode=viewprofile') !== false) ? $user->lang['VIEWING_MEMBER_PROFILE'] : $user->lang['VIEWING_MEMBERS'];
 			$location_url = append_sid("{$phpbb_root_path}memberlist.$phpEx");
+
+			if (strpos($row['session_page'], 'mode=viewprofile') !== false)
+			{
+				$location = $user->lang['VIEWING_MEMBER_PROFILE'];
+			}
+			else if (strpos($row['session_page'], 'mode=contactadmin') !== false)
+			{
+				$location = $user->lang['VIEWING_CONTACT_ADMIN'];
+				$location_url = append_sid("{$phpbb_root_path}memberlist.$phpEx", 'mode=contactadmin');
+			}
+			else
+			{
+				$location = $user->lang['VIEWING_MEMBERS'];
+			}
 		break;
 
 		case 'mcp':
@@ -359,7 +388,7 @@ while ($row = $db->sql_fetchrow($result))
 	$vars = array('on_page', 'row', 'location', 'location_url', 'forum_data');
 	extract($phpbb_dispatcher->trigger_event('core.viewonline_overwrite_location', compact($vars)));
 
-	$template->assign_block_vars('user_row', array(
+	$template_row = array(
 		'USERNAME' 			=> $row['username'],
 		'USERNAME_COLOUR'	=> $row['user_colour'],
 		'USERNAME_FULL'		=> $username_full,
@@ -376,7 +405,22 @@ while ($row = $db->sql_fetchrow($result))
 		'S_USER_HIDDEN'		=> $s_user_hidden,
 		'S_GUEST'			=> ($row['user_id'] == ANONYMOUS) ? true : false,
 		'S_USER_TYPE'		=> $row['user_type'],
-	));
+	);
+
+	/**
+	* Modify viewonline template data before it is displayed in the list
+	*
+	* @event core.viewonline_modify_user_row
+	* @var	array	on_page			File name and query string
+	* @var	array	row				Array with the users sql row
+	* @var	array	forum_data		Array with forum data
+	* @var	array	template_row	Array with template variables for the user row
+	* @since 3.1.0-RC4
+	*/
+	$vars = array('on_page', 'row', 'forum_data', 'template_row');
+	extract($phpbb_dispatcher->trigger_event('core.viewonline_modify_user_row', compact($vars)));
+
+	$template->assign_block_vars('user_row', $template_row);
 }
 $db->sql_freeresult($result);
 unset($prev_id, $prev_ip);

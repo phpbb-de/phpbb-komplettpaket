@@ -24,6 +24,9 @@ class manager
 	protected $notification_types;
 
 	/** @var array */
+	protected $subscription_types;
+
+	/** @var array */
 	protected $notification_methods;
 
 	/** @var ContainerInterface */
@@ -34,6 +37,9 @@ class manager
 
 	/** @var \phpbb\config\config */
 	protected $config;
+
+	/** @var \phpbb\event\dispatcher_interface */
+	protected $phpbb_dispatcher;
 
 	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
@@ -67,16 +73,19 @@ class manager
 	* @param ContainerInterface $phpbb_container
 	* @param \phpbb\user_loader $user_loader
 	* @param \phpbb\config\config $config
+	* @param \phpbb\event\dispatcher_interface $phpbb_dispatcher
 	* @param \phpbb\db\driver\driver_interface $db
+	* @param \phpbb\cache\service $cache
 	* @param \phpbb\user $user
 	* @param string $phpbb_root_path
 	* @param string $php_ext
 	* @param string $notification_types_table
 	* @param string $notifications_table
 	* @param string $user_notifications_table
+	*
 	* @return \phpbb\notification\manager
 	*/
-	public function __construct($notification_types, $notification_methods, ContainerInterface $phpbb_container, \phpbb\user_loader $user_loader, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\cache\service $cache, $user, $phpbb_root_path, $php_ext, $notification_types_table, $notifications_table, $user_notifications_table)
+	public function __construct($notification_types, $notification_methods, ContainerInterface $phpbb_container, \phpbb\user_loader $user_loader, \phpbb\config\config $config, \phpbb\event\dispatcher_interface $phpbb_dispatcher, \phpbb\db\driver\driver_interface $db, \phpbb\cache\service $cache, $user, $phpbb_root_path, $php_ext, $notification_types_table, $notifications_table, $user_notifications_table)
 	{
 		$this->notification_types = $notification_types;
 		$this->notification_methods = $notification_methods;
@@ -84,6 +93,7 @@ class manager
 
 		$this->user_loader = $user_loader;
 		$this->config = $config;
+		$this->phpbb_dispatcher = $phpbb_dispatcher;
 		$this->db = $db;
 		$this->cache = $cache;
 		$this->user = $user;
@@ -287,7 +297,7 @@ class manager
 			WHERE notification_time <= " . (int) $time .
 				(($notification_type_name !== false) ? ' AND ' .
 					(is_array($notification_type_name) ? $this->db->sql_in_set('notification_type_id', $this->get_notification_type_ids($notification_type_name)) : 'notification_type_id = ' . $this->get_notification_type_id($notification_type_name)) : '') .
-				(($item_parent_id !== false) ? ' AND ' . (is_array($item_parent_id) ? $this->db->sql_in_set('item_parent_id', $item_parent_id) : 'item_parent_id = ' . (int) $item_parent_id) : '') .
+				(($item_parent_id !== false) ? ' AND ' . (is_array($item_parent_id) ? $this->db->sql_in_set('item_parent_id', $item_parent_id, false, true) : 'item_parent_id = ' . (int) $item_parent_id) : '') .
 				(($user_id !== false) ? ' AND ' . (is_array($user_id) ? $this->db->sql_in_set('user_id', $user_id) : 'user_id = ' . (int) $user_id) : '');
 		$this->db->sql_query($sql);
 	}
@@ -344,6 +354,26 @@ class manager
 
 		// find out which users want to receive this type of notification
 		$notify_users = $this->get_item_type_class($notification_type_name)->find_users_for_notification($data, $options);
+
+		/**
+		* Allow filtering the notify_users array for a notification that is about to be sent.
+		* Here, $notify_users is already filtered by f_read and the ignored list included in the options variable
+		*
+		* @event core.notification_manager_add_notifications
+		* @var	string	notification_type_name		The forum id from where the topic belongs
+		* @var	array 	data						Data specific for the notification_type_name used will be inserted
+		* @var	array 	notify_users				The array of userid that are going to be notified for this notification. Set to array() to cancel.
+		* @var	array 	options						The options that were used when this method was called (read only)
+		*
+		* @since 3.1.3-RC1
+		*/
+		$vars = array(
+			'notification_type_name',
+			'data',
+			'notify_users',
+			'options',
+		);
+		extract($this->phpbb_dispatcher->trigger_event('core.notification_manager_add_notifications', compact($vars)));
 
 		$this->add_notifications_for_users($notification_type_name, $data, $notify_users);
 
@@ -522,33 +552,36 @@ class manager
 	*/
 	public function get_subscription_types()
 	{
-		$subscription_types = array();
-
-		foreach ($this->notification_types as $type_name => $data)
+		if ($this->subscription_types === null)
 		{
-			$type = $this->get_item_type_class($type_name);
+			$this->subscription_types = array();
 
-			if ($type instanceof \phpbb\notification\type\type_interface && $type->is_available())
+			foreach ($this->notification_types as $type_name => $data)
 			{
-				$options = array_merge(array(
-					'id'		=> $type->get_type(),
-					'lang'		=> 'NOTIFICATION_TYPE_' . strtoupper($type->get_type()),
-					'group'		=> 'NOTIFICATION_GROUP_MISCELLANEOUS',
-				), (($type::$notification_option !== false) ? $type::$notification_option : array()));
+				$type = $this->get_item_type_class($type_name);
 
-				$subscription_types[$options['group']][$options['id']] = $options;
+				if ($type instanceof \phpbb\notification\type\type_interface && $type->is_available())
+				{
+					$options = array_merge(array(
+						'id' => $type->get_type(),
+						'lang' => 'NOTIFICATION_TYPE_' . strtoupper($type->get_type()),
+						'group' => 'NOTIFICATION_GROUP_MISCELLANEOUS',
+					), (($type::$notification_option !== false) ? $type::$notification_option : array()));
+
+					$this->subscription_types[$options['group']][$options['id']] = $options;
+				}
+			}
+
+			// Move Miscellaneous to the very last section
+			if (isset($this->subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS']))
+			{
+				$miscellaneous = $this->subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS'];
+				unset($this->subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS']);
+				$this->subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS'] = $miscellaneous;
 			}
 		}
 
-		// Move Miscellaneous to the very last section
-		if (isset($subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS']))
-		{
-			$miscellaneous = $subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS'];
-			unset($subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS']);
-			$subscription_types['NOTIFICATION_GROUP_MISCELLANEOUS'] = $miscellaneous;
-		}
-
-		return $subscription_types;
+		return $this->subscription_types;
 	}
 
 	/**
@@ -568,7 +601,7 @@ class manager
 			{
 				$subscription_methods[$method_name] = array(
 					'id'		=> $method->get_type(),
-					'lang'		=> 'NOTIFICATION_METHOD_' . strtoupper($method->get_type()),
+					'lang'		=> str_replace('.', '_', strtoupper($method->get_type())),
 				);
 			}
 		}
@@ -832,7 +865,7 @@ class manager
 	* Delete all notifications older than a certain time
 	*
 	* @param int $timestamp Unix timestamp to delete all notifications that were created before
-	* @param bool $only_unread True (default) to only prune read notifications
+	* @param bool $only_read True (default) to only prune read notifications
 	*/
 	public function prune_notifications($timestamp, $only_read = true)
 	{
@@ -849,8 +882,6 @@ class manager
 	*/
 	public function get_item_type_class($notification_type_name, $data = array())
 	{
-		$notification_type_name = (strpos($notification_type_name, 'notification.type.') === 0) ? $notification_type_name : 'notification.type.' . $notification_type_name;
-
 		$item = $this->load_object($notification_type_name);
 
 		$item->set_initial_data($data);
@@ -863,8 +894,6 @@ class manager
 	*/
 	public function get_method_class($method_name)
 	{
-		$method_name = (strpos($method_name, 'notification.method.') === 0) ? $method_name : 'notification.method.' . $method_name;
-
 		return $this->load_object($method_name);
 	}
 

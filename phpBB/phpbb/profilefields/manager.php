@@ -245,12 +245,8 @@ class manager
 			$cp_data = $this->build_insert_sql_array($cp_data);
 			$cp_data['user_id'] = (int) $user_id;
 
-			$this->db->sql_return_on_error(true);
-
 			$sql = 'INSERT INTO ' . $this->fields_data_table . ' ' . $this->db->sql_build_array('INSERT', $cp_data);
 			$this->db->sql_query($sql);
-
-			$this->db->sql_return_on_error(false);
 		}
 	}
 
@@ -280,11 +276,31 @@ class manager
 			$profile_field = $this->type_collection[$field_data['field_type']];
 
 			$tpl_fields[] = array(
+				'PROFILE_FIELD_IDENT'	=> $field_ident,
 				'PROFILE_FIELD_TYPE'	=> $field_data['field_type'],
 				'PROFILE_FIELD_NAME'	=> $profile_field->get_field_name($field_data['lang_name']),
 				'PROFILE_FIELD_EXPLAIN'	=> $this->user->lang($field_data['lang_explain']),
 			);
 		}
+
+		$profile_cache = $this->profile_cache;
+
+		/**
+		* Event to modify template headlines of the generated profile fields
+		*
+		* @event core.generate_profile_fields_template_headlines
+		* @var	string	restrict_option	Restrict the published fields to a certain profile field option
+		* @var	array	tpl_fields		Array with template data fields
+		* @var	array	profile_cache	A copy of the profile cache to make additional checks
+		* @since 3.1.6-RC1
+		*/
+		$vars = array(
+			'restrict_option',
+			'tpl_fields',
+			'profile_cache',
+		);
+		extract($this->dispatcher->trigger_event('core.generate_profile_fields_template_headlines', compact($vars)));
+		unset($profile_cache);
 
 		return $tpl_fields;
 	}
@@ -328,7 +344,7 @@ class manager
 		* Event to modify profile fields data retrieved from the database
 		*
 		* @event core.grab_profile_fields_data
-		* @var	array	user_ids		Single user id or an array of ids 
+		* @var	array	user_ids		Single user id or an array of ids
 		* @var	array	field_data		Array with profile fields data
 		* @since 3.1.0-b3
 		*/
@@ -377,7 +393,7 @@ class manager
 		* Event to modify data of the generated profile fields, before the template assignment loop
 		*
 		* @event core.generate_profile_fields_template_data_before
-		* @var	array	profile_row		Array with users profile field data 
+		* @var	array	profile_row		Array with users profile field data
 		* @var	array	tpl_fields		Array with template data fields
 		* @var	bool	use_contact_fields	Should we display contact fields as such?
 		* @since 3.1.0-b3
@@ -397,7 +413,7 @@ class manager
 			}
 
 			$field_desc = $contact_url = '';
-			if ($use_contact_fields)
+			if ($use_contact_fields && $ident_ary['data']['field_is_contact'])
 			{
 				$value = $profile_field->get_profile_contact_value($ident_ary['value'], $ident_ary['data']);
 				$field_desc = $this->user->lang($ident_ary['data']['field_contact_desc']);
@@ -445,7 +461,7 @@ class manager
 		* Event to modify template data of the generated profile fields
 		*
 		* @event core.generate_profile_fields_template_data
-		* @var	array	profile_row		Array with users profile field data 
+		* @var	array	profile_row		Array with users profile field data
 		* @var	array	tpl_fields		Array with template data fields
 		* @var	bool	use_contact_fields	Should we display contact fields as such?
 		* @since 3.1.0-b3

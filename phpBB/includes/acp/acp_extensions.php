@@ -76,7 +76,7 @@ class acp_extensions
 			{
 				$md_manager->get_metadata('all');
 			}
-			catch(\phpbb\extension\exception $e)
+			catch (\phpbb\extension\exception $e)
 			{
 				trigger_error($e, E_USER_WARNING);
 			}
@@ -137,6 +137,12 @@ class acp_extensions
 					trigger_error($user->lang['EXTENSION_NOT_AVAILABLE'] . adm_back_link($this->u_action), E_USER_WARNING);
 				}
 
+				$extension = $phpbb_extension_manager->get_extension($ext_name);
+				if (!$extension->is_enableable())
+				{
+					trigger_error($user->lang['EXTENSION_NOT_ENABLEABLE'] . adm_back_link($this->u_action), E_USER_WARNING);
+				}
+
 				if ($phpbb_extension_manager->is_enabled($ext_name))
 				{
 					redirect($this->u_action);
@@ -162,9 +168,10 @@ class acp_extensions
 					trigger_error($user->lang['EXTENSION_NOT_AVAILABLE'] . adm_back_link($this->u_action), E_USER_WARNING);
 				}
 
-				if ($phpbb_extension_manager->is_enabled($ext_name))
+				$extension = $phpbb_extension_manager->get_extension($ext_name);
+				if (!$extension->is_enableable())
 				{
-					redirect($this->u_action);
+					trigger_error($user->lang['EXTENSION_NOT_ENABLEABLE'] . adm_back_link($this->u_action), E_USER_WARNING);
 				}
 
 				try
@@ -345,7 +352,7 @@ class acp_extensions
 				$enabled_extension_meta_data[$name]['S_VERSIONCHECK'] = true;
 				$enabled_extension_meta_data[$name]['U_VERSIONCHECK_FORCE'] = $this->u_action . '&amp;action=details&amp;versioncheck_force=1&amp;ext_name=' . urlencode($md_manager->get_metadata('name'));
 			}
-			catch(\phpbb\extension\exception $e)
+			catch (\phpbb\extension\exception $e)
 			{
 				$this->template->assign_block_vars('disabled', array(
 					'META_DISPLAY_NAME'		=> $this->user->lang('EXTENSION_INVALID_LIST', $name, $e),
@@ -401,7 +408,7 @@ class acp_extensions
 				$disabled_extension_meta_data[$name]['S_VERSIONCHECK'] = true;
 				$disabled_extension_meta_data[$name]['U_VERSIONCHECK_FORCE'] = $this->u_action . '&amp;action=details&amp;versioncheck_force=1&amp;ext_name=' . urlencode($md_manager->get_metadata('name'));
 			}
-			catch(\phpbb\extension\exception $e)
+			catch (\phpbb\extension\exception $e)
 			{
 				$this->template->assign_block_vars('disabled', array(
 					'META_DISPLAY_NAME'		=> $this->user->lang('EXTENSION_INVALID_LIST', $name, $e),
@@ -460,7 +467,7 @@ class acp_extensions
 				$available_extension_meta_data[$name]['S_VERSIONCHECK'] = true;
 				$available_extension_meta_data[$name]['U_VERSIONCHECK_FORCE'] = $this->u_action . '&amp;action=details&amp;versioncheck_force=1&amp;ext_name=' . urlencode($md_manager->get_metadata('name'));
 			}
-			catch(\phpbb\extension\exception $e)
+			catch (\phpbb\extension\exception $e)
 			{
 				$this->template->assign_block_vars('disabled', array(
 					'META_DISPLAY_NAME'		=> $this->user->lang('EXTENSION_INVALID_LIST', $name, $e),
@@ -525,7 +532,7 @@ class acp_extensions
 
 		$version_check = $meta['extra']['version-check'];
 
-		$version_helper = new \phpbb\version_helper($this->cache, $this->config, $this->user);
+		$version_helper = new \phpbb\version_helper($this->cache, $this->config, new \phpbb\file_downloader(), $this->user);
 		$version_helper->set_current_version($meta['version']);
 		$version_helper->set_file_location($version_check['host'], $version_check['directory'], $version_check['filename']);
 		$version_helper->force_stability($this->config['extension_force_unstable'] ? 'unstable' : null);

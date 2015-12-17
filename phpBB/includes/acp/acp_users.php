@@ -173,6 +173,21 @@ class acp_users
 				$delete_type	= request_var('delete_type', '');
 				$ip				= request_var('ip', 'ip');
 
+				/**
+				 * Run code at beginning of ACP users overview
+				 *
+				 * @event core.acp_users_overview_before
+				 * @var	array   user_row    Current user data
+				 * @var	string  mode        Active module
+				 * @var	string  action      Module that should be run
+				 * @var	bool    submit      Do we display the form only
+				 *                          or did the user press submit
+				 * @var	array   error       Array holding error messages
+				 * @since 3.1.3-RC1
+				 */
+				$vars = array('user_row', 'mode', 'action', 'submit', 'error');
+				extract($phpbb_dispatcher->trigger_event('core.acp_users_overview_before', compact($vars)));
+
 				if ($submit)
 				{
 					if ($delete)
@@ -404,7 +419,7 @@ class acp_users
 								if ($config['require_activation'] == USER_ACTIVATION_ADMIN)
 								{
 									$phpbb_notifications = $phpbb_container->get('notification_manager');
-									$phpbb_notifications->delete_notifications('admin_activate_user', $user_row['user_id']);
+									$phpbb_notifications->delete_notifications('notification.type.admin_activate_user', $user_row['user_id']);
 
 									include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
 
@@ -465,25 +480,9 @@ class acp_users
 								trigger_error($user->lang['FORM_INVALID'] . adm_back_link($this->u_action . '&amp;u=' . $user_id), E_USER_WARNING);
 							}
 
-							$sql_ary = array(
-								'user_avatar'			=> '',
-								'user_avatar_type'		=> '',
-								'user_avatar_width'		=> 0,
-								'user_avatar_height'	=> 0,
-							);
-
-							$sql = 'UPDATE ' . USERS_TABLE . '
-								SET ' . $db->sql_build_array('UPDATE', $sql_ary) . "
-								WHERE user_id = $user_id";
-							$db->sql_query($sql);
-
 							// Delete old avatar if present
 							$phpbb_avatar_manager = $phpbb_container->get('avatar.manager');
-							$driver = $phpbb_avatar_manager->get_driver($user_row['user_avatar_type']);
-							if ($driver)
-							{
-								$driver->delete($user_row);
-							}
+							$phpbb_avatar_manager->handle_avatar_delete($db, $user, $phpbb_avatar_manager->clean_row($user_row, 'user'), USERS_TABLE, 'user_');
 
 							add_log('admin', 'LOG_USER_DEL_AVATAR', $user_row['username']);
 							add_log('user', $user_id, 'LOG_USER_DEL_AVATAR_USER');
@@ -1378,6 +1377,19 @@ class acp_users
 				$data['bday_year']		= request_var('bday_year', $data['bday_year']);
 				$data['user_birthday']	= sprintf('%2d-%2d-%4d', $data['bday_day'], $data['bday_month'], $data['bday_year']);
 
+				/**
+				* Modify user data on editing profile in ACP
+				*
+				* @event core.acp_users_modify_profile
+				* @var	array	data		Array with user profile data
+				* @var	bool	submit		Flag indicating if submit button has been pressed
+				* @var	int		user_id		The user id
+				* @var	array	user_row	Array with the full user data
+				* @since 3.1.4-RC1
+				*/
+				$vars = array('data', 'submit', 'user_id', 'user_row');
+				extract($phpbb_dispatcher->trigger_event('core.acp_users_modify_profile', compact($vars)));
+
 				if ($submit)
 				{
 					$error = validate_data($data, array(
@@ -1402,12 +1414,38 @@ class acp_users
 						$error[] = 'FORM_INVALID';
 					}
 
+					/**
+					* Validate profile data in ACP before submitting to the database
+					*
+					* @event core.acp_users_profile_validate
+					* @var	bool	submit		Flag indicating if submit button has been pressed
+					* @var	array	data		Array with user profile data
+					* @var	array	error		Array with the form errors
+					* @since 3.1.4-RC1
+					*/
+					$vars = array('submit', 'data', 'error');
+					extract($phpbb_dispatcher->trigger_event('core.acp_users_profile_validate', compact($vars)));
+
 					if (!sizeof($error))
 					{
 						$sql_ary = array(
 							'user_jabber'	=> $data['jabber'],
 							'user_birthday'	=> $data['user_birthday'],
 						);
+
+						/**
+						* Modify profile data in ACP before submitting to the database
+						*
+						* @event core.acp_users_profile_modify_sql_ary
+						* @var	array	cp_data		Array with the user custom profile fields data
+						* @var	array	data		Array with user profile data
+						* @var	int		user_id		The user id
+						* @var	array	user_row	Array with the full user data
+						* @var	array	sql_ary		Array with sql data
+						* @since 3.1.4-RC1
+						*/
+						$vars = array('cp_data', 'data', 'user_id', 'user_row', 'sql_ary');
+						extract($phpbb_dispatcher->trigger_event('core.acp_users_profile_modify_sql_ary', compact($vars)));
 
 						$sql = 'UPDATE ' . USERS_TABLE . '
 							SET ' . $db->sql_build_array('UPDATE', $sql_ary) . "
@@ -1677,7 +1715,7 @@ class acp_users
 					${'s_sort_' . $sort_option . '_dir'} .= '</select>';
 				}
 
-				$timezone_selects = phpbb_timezone_select($user, $data['tz'], true);
+				phpbb_timezone_select($template, $user, $data['tz'], true);
 				$user_prefs_data = array(
 					'S_PREFS'			=> true,
 					'S_JABBER_DISABLED'	=> ($config['jab_enable'] && $user_row['user_jabber'] && @extension_loaded('xml')) ? false : true,
@@ -1716,8 +1754,6 @@ class acp_users
 
 					'S_LANG_OPTIONS'	=> language_select($data['lang']),
 					'S_STYLE_OPTIONS'	=> style_select($data['style']),
-					'S_TZ_OPTIONS'			=> $timezone_selects['tz_select'],
-					'S_TZ_DATE_OPTIONS'		=> $timezone_selects['tz_dates'],
 				);
 
 				/**
@@ -1779,33 +1815,27 @@ class acp_users
 									trigger_error($user->lang['USER_AVATAR_UPDATED'] . adm_back_link($this->u_action . '&amp;u=' . $user_id));
 								}
 							}
-							else
-							{
-								$driver = $phpbb_avatar_manager->get_driver($avatar_data['avatar_type']);
-								if ($driver)
-								{
-									$driver->delete($avatar_data);
-								}
-
-								// Removing the avatar
-								$result = array(
-									'user_avatar' => '',
-									'user_avatar_type' => '',
-									'user_avatar_width' => 0,
-									'user_avatar_height' => 0,
-								);
-
-								$sql = 'UPDATE ' . USERS_TABLE . '
-									SET ' . $db->sql_build_array('UPDATE', $result) . '
-									WHERE user_id = ' . (int) $user_id;
-
-								$db->sql_query($sql);
-								trigger_error($user->lang['USER_AVATAR_UPDATED'] . adm_back_link($this->u_action . '&amp;u=' . $user_id));
-							}
 						}
 						else
 						{
 							trigger_error($user->lang['FORM_INVALID'] . adm_back_link($this->u_action . '&amp;u=' . $user_id), E_USER_WARNING);
+						}
+					}
+
+					// Handle deletion of avatars
+					if ($request->is_set_post('avatar_delete'))
+					{
+						if (!confirm_box(true))
+						{
+							confirm_box(false, $user->lang('CONFIRM_AVATAR_DELETE'), build_hidden_fields(array(
+									'avatar_delete'     => true))
+							);
+						}
+						else
+						{
+							$phpbb_avatar_manager->handle_avatar_delete($db, $user, $avatar_data, USERS_TABLE, 'user_');
+
+							trigger_error($user->lang['USER_AVATAR_UPDATED'] . adm_back_link($this->u_action . '&amp;u=' . $user_id));
 						}
 					}
 

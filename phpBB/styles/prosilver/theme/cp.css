@@ -59,10 +59,6 @@ ul.cplist {
 	border-bottom: none;
 }
 
-#cp-main .postbody p {
-	font-size: 1.1em;
-}
-
 #cp-main .pm-message {
 	border: 1px solid transparent;
 	margin: 10px 0;
@@ -76,6 +72,10 @@ ul.cplist {
 
 #cp-main .postbody h3, #cp-main .box2 h3 {
 	margin-top: 0;
+}
+
+.panel-container .postbody p.author {
+	font-size: 1.1em;
 }
 
 #cp-main .buttons {
@@ -96,12 +96,6 @@ ul.cplist {
 	margin-bottom: 0px;
 }
 
-.tabs-container:after {
-	clear: both;
-	content: '';
-	display: block;
-}
-
 /* CP tabs shared
 ----------------------------------------*/
 #tabs, #minitabs {
@@ -115,18 +109,12 @@ ul.cplist {
 	position: relative;
 }
 
-#tabs > ul:after, #minitabs > ul:after {
-	clear: both;
-	content: '';
-	display: block;
-}
-
 #tabs .tab, #minitabs .tab {
-	display: inline-block;
+	display: block;
 	float: left;
 	font-size: 1em;
 	font-weight: bold;
-	line-height: 14px;
+	line-height: 1.4em;
 }
 
 #tabs .tab > a, #minitabs .tab > a {
@@ -184,10 +172,10 @@ ul.cplist {
 
 .responsive-tab > a.responsive-tab-link {
 	display: block;
-	font-size: 16px;
+	font-size: 1.6em;
 	position: relative;
 	width: 16px;
-	line-height: 14px;
+	line-height: 0.9em;
 	text-decoration: none;
 }
 

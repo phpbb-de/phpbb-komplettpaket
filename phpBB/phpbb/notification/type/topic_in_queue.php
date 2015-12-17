@@ -27,7 +27,7 @@ class topic_in_queue extends \phpbb\notification\type\topic
 	*/
 	public function get_type()
 	{
-		return 'topic_in_queue';
+		return 'notification.type.topic_in_queue';
 	}
 
 	/**
@@ -44,7 +44,7 @@ class topic_in_queue extends \phpbb\notification\type\topic
 	* 					Array of data (including keys 'id', 'lang', and 'group')
 	*/
 	public static $notification_option = array(
-		'id'	=> 'needs_approval',
+		'id'	=> 'notification.type.needs_approval',
 		'lang'	=> 'NOTIFICATION_TYPE_IN_MODERATION_QUEUE',
 		'group'	=> 'NOTIFICATION_GROUP_MODERATION',
 	);
@@ -70,6 +70,7 @@ class topic_in_queue extends \phpbb\notification\type\topic
 	* Find the users who want to receive notifications
 	*
 	* @param array $topic Data from the topic
+	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/

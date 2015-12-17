@@ -18,16 +18,16 @@ a:hover	{ text-decoration: underline; }
 }
 
 /* Links on gradient backgrounds */
-#search-box a, .navbg a, .forumbg .header a, .forabg .header a, th a {
+.forumbg .header a, .forabg .header a, th a {
 	text-decoration: none;
 }
 
-#search-box a:hover, .navbg a:hover, .forumbg .header a:hover, .forabg .header a:hover, th a:hover {
+.forumbg .header a:hover, .forabg .header a:hover, th a:hover {
 	text-decoration: underline;
 }
 
 /* Navigation bar links */
-ul.linklist li.small-icon > a, ul.linklist li.breadcrumbs span:first-child > a {
+li.breadcrumbs span:first-child > a {
 	display: inline-block;
 	padding-left: 17px;
 }

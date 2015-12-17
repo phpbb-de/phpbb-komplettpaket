@@ -96,6 +96,12 @@ class fulltext_sphinx
 	protected $dbtype;
 
 	/**
+	 * phpBB event dispatcher object
+	 * @var \phpbb\event\dispatcher_interface
+	 */
+	protected $phpbb_dispatcher;
+
+	/**
 	 * User object
 	 * @var \phpbb\user
 	 */
@@ -119,12 +125,20 @@ class fulltext_sphinx
 	 * Creates a new \phpbb\search\fulltext_postgres, which is used as a search backend
 	 *
 	 * @param string|bool $error Any error that occurs is passed on through this reference variable otherwise false
+	 * @param string $phpbb_root_path Relative path to phpBB root
+	 * @param string $phpEx PHP file extension
+	 * @param \phpbb\auth\auth $auth Auth object
+	 * @param \phpbb\config\config $config Config object
+	 * @param \phpbb\db\driver\driver_interface Database object
+	 * @param \phpbb\user $user User object
+	 * @param \phpbb\event\dispatcher_interface	$phpbb_dispatcher	Event dispatcher object
 	 */
-	public function __construct(&$error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user)
+	public function __construct(&$error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher)
 	{
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->php_ext = $phpEx;
 		$this->config = $config;
+		$this->phpbb_dispatcher = $phpbb_dispatcher;
 		$this->user = $user;
 		$this->db = $db;
 		$this->auth = $auth;
@@ -132,7 +146,7 @@ class fulltext_sphinx
 		// Initialize \phpbb\db\tools object
 		$this->db_tools = new \phpbb\db\tools($this->db);
 
-		if(!$this->config['fulltext_sphinx_id'])
+		if (!$this->config['fulltext_sphinx_id'])
 		{
 			set_config('fulltext_sphinx_id', unique_id());
 		}
@@ -250,8 +264,8 @@ class fulltext_sphinx
 				array('type',						$this->dbtype . ' # mysql or pgsql'),
 				// This config value sql_host needs to be changed incase sphinx and sql are on different servers
 				array('sql_host',					$dbhost . ' # SQL server host sphinx connects to'),
-				array('sql_user',					$dbuser),
-				array('sql_pass',					$dbpasswd),
+				array('sql_user',					'[dbuser]'),
+				array('sql_pass',					'[dbpassword]'),
 				array('sql_db',						$dbname),
 				array('sql_port',					$dbport . ' # optional, default is 3306 for mysql and 5432 for pgsql'),
 				array('sql_query_pre',				'SET NAMES \'utf8\''),
@@ -709,6 +723,7 @@ class fulltext_sphinx
 					),
 					'ON'	=> 'p1.topic_id = p2.topic_id',
 				)),
+				'WHERE' => 'p2.post_id = ' . ((int) $post_id),
 			);
 
 			$sql = $this->db->sql_build_query('SELECT', $sql_array);

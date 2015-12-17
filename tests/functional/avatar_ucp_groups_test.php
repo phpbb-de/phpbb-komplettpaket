@@ -10,12 +10,12 @@
 * the docs/CREDITS.txt file.
 *
 */
-require_once dirname(__FILE__) . '/common_avatar_test.php';
+require_once dirname(__FILE__) . '/common_avatar_test_case.php';
 
 /**
  * @group functional
  */
-class phpbb_functional_avatar_ucp_groups_test extends phpbb_functional_common_avatar_test
+class phpbb_functional_avatar_ucp_groups_test extends phpbb_functional_common_avatar_test_case
 {
 	public function get_url()
 	{
@@ -55,7 +55,7 @@ class phpbb_functional_avatar_ucp_groups_test extends phpbb_functional_common_av
 				),
 			),
 			array(
-				'GROUP_UPDATED',
+				array('CONFIRM_AVATAR_DELETE', 'GROUP_UPDATED'),
 				'avatar_driver_gravatar',
 				array(
 					'avatar_delete'	=> array('tick', ''),

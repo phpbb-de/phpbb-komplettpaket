@@ -48,11 +48,13 @@ $lang = array_merge($lang, array(
 
 	'BEFORE'				=> 'Before',
 
-	'CC_EMAIL'				=> 'Send a copy of this email to yourself.',
+	'CC_SENDER'				=> 'Send a copy of this email to yourself.',
 	'CONTACT_ADMIN'			=> 'Contact a Board Administrator',
 
 	'DEST_LANG'				=> 'Language',
 	'DEST_LANG_EXPLAIN'		=> 'Select an appropriate language (if available) for the recipient of this message.',
+
+	'EDIT_PROFILE'			=> 'Edit profile',
 
 	'EMAIL_BODY_EXPLAIN'	=> 'This message will be sent as plain text, do not include any HTML or BBCode. The return address for this message will be set to your email address.',
 	'EMAIL_DISABLED'		=> 'Sorry but all email related functions have been disabled.',

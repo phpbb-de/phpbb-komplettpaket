@@ -39,7 +39,7 @@ class ucp_login_link
 	*/
 	function main($id, $mode)
 	{
-		global $config, $phpbb_container, $request, $template, $user;
+		global $phpbb_container, $request, $template, $user;
 		global $phpbb_root_path, $phpEx;
 
 		// Initialize necessary variables
@@ -57,8 +57,8 @@ class ucp_login_link
 		}
 
 		// Use the auth_provider requested even if different from configured
-		$auth_provider = 'auth.provider.' . $request->variable('auth_provider', $config['auth_method']);
-		$auth_provider = $phpbb_container->get($auth_provider);
+		$provider_collection = $phpbb_container->get('auth.provider_collection');
+		$auth_provider = $provider_collection->get_provider($request->variable('auth_provider', ''));
 
 		// Set the link_method to login_link
 		$data['link_method'] = 'login_link';
@@ -75,7 +75,7 @@ class ucp_login_link
 		{
 			if ($request->is_set_post('login'))
 			{
-				$login_username = $request->variable('login_username', '', false, \phpbb\request\request_interface::POST);
+				$login_username = $request->variable('login_username', '', true, \phpbb\request\request_interface::POST);
 				$login_password = $request->untrimmed_variable('login_password', '', true, \phpbb\request\request_interface::POST);
 
 				$login_result = $auth_provider->login($login_username, $login_password);
@@ -181,7 +181,7 @@ class ucp_login_link
 	*/
 	protected function process_login_result($result)
 	{
-		global $config, $request, $template, $user;
+		global $config, $request, $template, $user, $phpbb_container;
 
 		$login_error = null;
 
@@ -197,7 +197,7 @@ class ucp_login_link
 			{
 				case LOGIN_ERROR_ATTEMPTS:
 
-					$captcha = phpbb_captcha_factory::get_instance($config['captcha_plugin']);
+					$captcha = $phpbb_container->get('captcha.factory')->get_instance($config['captcha_plugin']);
 					$captcha->init(CONFIRM_LOGIN);
 
 					$template->assign_vars(array(

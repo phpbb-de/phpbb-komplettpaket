@@ -12,6 +12,7 @@
 */
 
 require_once dirname(__FILE__) . '/base.php';
+require_once dirname(__FILE__) . '/../../phpBB/includes/functions.php';
 
 class phpbb_notification_group_request_test extends phpbb_tests_notification_base
 {
@@ -25,8 +26,8 @@ class phpbb_notification_group_request_test extends phpbb_tests_notification_bas
 		return array_merge(
 			parent::get_notification_types(),
 			array(
-				'group_request',
-				'group_request_approved',
+				'notification.type.group_request',
+				'notification.type.group_request_approved',
 			)
 		);
 	}

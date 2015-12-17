@@ -27,7 +27,7 @@ class post extends \phpbb\notification\type\base
 	*/
 	public function get_type()
 	{
-		return 'post';
+		return 'notification.type.post';
 	}
 
 	/**
@@ -86,7 +86,8 @@ class post extends \phpbb\notification\type\base
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $post Data from
+	* @param array $post Data from submit_post
+	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/
@@ -122,22 +123,12 @@ class post extends \phpbb\notification\type\base
 		}
 		$this->db->sql_freeresult($result);
 
-		if (empty($users))
+		$notify_users = $this->get_authorised_recipients($users, $post['forum_id'], $options, true);
+
+		if (empty($notify_users))
 		{
 			return array();
 		}
-
-		$users = array_unique($users);
-		sort($users);
-
-		$auth_read = $this->auth->acl_get_list($users, 'f_read', $post['forum_id']);
-
-		if (empty($auth_read))
-		{
-			return array();
-		}
-
-		$notify_users = $this->check_user_notification_options($auth_read[$post['forum_id']]['f_read'], $options);
 
 		// Try to find the users who already have been notified about replies and have not read the topic since and just update their notifications
 		$update_notifications = array();
@@ -174,7 +165,7 @@ class post extends \phpbb\notification\type\base
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->get_data('poster_id'));
+		return $this->user_loader->get_avatar($this->get_data('poster_id'), false, true);
 	}
 
 	/**
@@ -366,6 +357,7 @@ class post extends \phpbb\notification\type\base
 		{
 			$tracking_data[$row['user_id']] = $row['mark_time'];
 		}
+		$this->db->sql_freeresult($result);
 
 		return $tracking_data;
 	}

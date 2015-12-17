@@ -53,15 +53,6 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	// Grab icons
 	$icons = $cache->obtain_icons();
 
-	$bbcode = false;
-
-	// Instantiate BBCode if need be
-	if ($message_row['bbcode_bitfield'])
-	{
-		include($phpbb_root_path . 'includes/bbcode.' . $phpEx);
-		$bbcode = new bbcode($message_row['bbcode_bitfield']);
-	}
-
 	// Load the custom profile fields
 	if ($config['load_cpf_pm'])
 	{
@@ -197,7 +188,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		$u_pm = append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=pm&amp;mode=compose&amp;u=' . $author_id);
 	}
 
-	if ($user_info['user_jabber'] && $auth->acl_get('u_sendim'))
+	if ($config['jab_enable'] && $user_info['user_jabber'] && $auth->acl_get('u_sendim'))
 	{
 		$u_jabber = append_sid("{$phpbb_root_path}memberlist.$phpEx", 'mode=contact&amp;action=jabber&amp;u=' . $author_id);
 	}
@@ -213,6 +204,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'AUTHOR_AVATAR'		=> (isset($user_info['avatar'])) ? $user_info['avatar'] : '',
 		'AUTHOR_JOINED'		=> $user->format_date($user_info['user_regdate']),
 		'AUTHOR_POSTS'		=> (int) $user_info['user_posts'],
+		'U_AUTHOR_POSTS'	=> ($config['load_search'] && $auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id=$author_id&amp;sr=posts") : '',
 		'CONTACT_USER'		=> $user->lang('CONTACT_USER', get_username_string('username', $author_id, $user_info['username'], $user_info['user_colour'], $user_info['username'])),
 
 		'ONLINE_IMG'		=> (!$config['load_onlinetrack']) ? '' : ((isset($user_info['online']) && $user_info['online']) ? $user->img('icon_user_online', $user->lang['ONLINE']) : $user->img('icon_user_offline', $user->lang['OFFLINE'])),
@@ -250,7 +242,6 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'U_PM_ACTION'		=> $url . '&amp;mode=compose&amp;f=' . $folder_id . '&amp;p=' . $message_row['msg_id'],
 
 		'S_HAS_ATTACHMENTS'	=> (sizeof($attachments)) ? true : false,
-		'S_HAS_MULTIPLE_ATTACHMENTS' => (sizeof($attachments) > 1),
 		'S_DISPLAY_NOTICE'	=> $display_notice && $message_row['message_attachment'],
 		'S_AUTHOR_DELETED'	=> ($author_id == ANONYMOUS) ? true : false,
 		'S_SPECIAL_FOLDER'	=> in_array($folder_id, array(PRIVMSGS_NO_BOX, PRIVMSGS_OUTBOX)),
@@ -274,7 +265,9 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	* @var	array	message_row	Array with message data
 	* @var	array	cp_row		Array with senders custom profile field data
 	* @var	array	msg_data	Template array with message data
+	* @var 	array	user_info	User data of the sender
 	* @since 3.1.0-a1
+	* @changed 3.1.6-RC1		Added user_info into event
 	*/
 	$vars = array(
 		'id',
@@ -285,6 +278,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'message_row',
 		'cp_row',
 		'msg_data',
+		'user_info',
 	);
 	extract($phpbb_dispatcher->trigger_event('core.ucp_pm_view_messsage', compact($vars)));
 
@@ -339,12 +333,6 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	// Display not already displayed Attachments for this post, we already parsed them. ;)
 	if (isset($attachments) && sizeof($attachments))
 	{
-		$methods = phpbb_gen_download_links('msg_id', $msg_id, $phpbb_root_path, $phpEx);
-		foreach ($methods as $method)
-		{
-			$template->assign_block_vars('dl_method', $method);
-		}
-
 		foreach ($attachments as $attachment)
 		{
 			$template->assign_block_vars('attachment', array(
@@ -410,12 +398,15 @@ function get_user_information($user_id, $user_row)
 
 	$user_row['avatar'] = ($user->optionget('viewavatars')) ? phpbb_get_user_avatar($user_row) : '';
 
-	if (!function_exists('get_user_rank'))
+	if (!function_exists('phpbb_get_user_rank'))
 	{
 		include($phpbb_root_path . 'includes/functions_display.' . $phpEx);
 	}
 
-	get_user_rank($user_row['user_rank'], $user_row['user_posts'], $user_row['rank_title'], $user_row['rank_image'], $user_row['rank_image_src']);
+	$user_rank_data = phpbb_get_user_rank($user_row, $user_row['user_posts']);
+	$user_row['rank_title'] = $user_rank_data['title'];
+	$user_row['rank_image'] = $user_rank_data['img'];
+	$user_row['rank_image_src'] = $user_rank_data['img_src'];
 
 	if ((!empty($user_row['user_allow_viewemail']) && $auth->acl_get('u_sendemail')) || $auth->acl_get('a_email'))
 	{
