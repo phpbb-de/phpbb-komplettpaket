@@ -1,8 +1,6 @@
-/* global phpbb */
-
 (function($) {  // Avoid conflicts with other libraries
 
-'use strict';
+"use strict";
 
 /**
  * The following callbacks are for reording items. row_down
@@ -15,10 +13,11 @@ phpbb.addAjaxCallback('row_down', function(res) {
 		return;
 	}
 
-	var $firstTr = $(this).parents('tr'),
-		$secondTr = $firstTr.next();
+	var el = $(this),
+		tr = el.parents('tr'),
+		trSwap = tr.next();
 
-	$firstTr.insertAfter($secondTr);
+	tr.insertAfter(trSwap);
 });
 
 phpbb.addAjaxCallback('row_up', function(res) {
@@ -26,10 +25,11 @@ phpbb.addAjaxCallback('row_up', function(res) {
 		return;
 	}
 
-	var $secondTr = $(this).parents('tr'),
-		$firstTr = $secondTr.prev();
+	var el = $(this),
+		tr = el.parents('tr'),
+		trSwap = tr.prev();
 
-	$secondTr.insertBefore($firstTr);
+	tr.insertBefore(trSwap);
 });
 
 /**
@@ -38,10 +38,10 @@ phpbb.addAjaxCallback('row_up', function(res) {
  * in the href with "deactivate", and vice versa.
  */
 phpbb.addAjaxCallback('activate_deactivate', function(res) {
-	var $this = $(this),
-		newHref = $this.attr('href');
+	var el = $(this),
+		newHref = el.attr('href');
 
-	$this.text(res.text);
+	el.text(res.text);
 
 	if (newHref.indexOf('deactivate') !== -1) {
 		newHref = newHref.replace('deactivate', 'activate');
@@ -49,7 +49,7 @@ phpbb.addAjaxCallback('activate_deactivate', function(res) {
 		newHref = newHref.replace('activate', 'deactivate');
 	}
 
-	$this.attr('href', newHref);
+	el.attr('href', newHref);
 });
 
 /**
@@ -66,10 +66,11 @@ phpbb.addAjaxCallback('row_delete', function(res) {
 
 $('[data-ajax]').each(function() {
 	var $this = $(this),
-		ajax = $this.attr('data-ajax');
+		ajax = $this.attr('data-ajax'),
+		fn;
 
 	if (ajax !== 'false') {
-		var fn = (ajax !== 'true') ? ajax : null;
+		fn = (ajax !== 'true') ? ajax : null;
 		phpbb.ajaxify({
 			selector: this,
 			refresh: $this.attr('data-refresh') !== undefined,
@@ -81,7 +82,7 @@ $('[data-ajax]').each(function() {
 /**
 * Automatically resize textarea
 */
-$(function() {
+$(document).ready(function() {
 	phpbb.resizeTextArea($('textarea:not(.no-auto-resize)'), {minHeight: 75});
 });
 

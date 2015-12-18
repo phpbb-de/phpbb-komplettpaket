@@ -42,6 +42,8 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 
 			unlink($fileinfo->getPathname());
 		}
+
+		parent::tearDown();
 	}
 
 	private function upload_file($filename, $mimetype)
@@ -93,32 +95,23 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 		$this->login();
 		$this->admin_login();
 		$this->add_lang('ucp');
-
-		// Make sure check_attachment_content is set to false
 		$crawler = self::request('GET', 'adm/index.php?sid=' . $this->sid . '&i=acp_attachments&mode=attach');
 
-		$form = $crawler->selectButton('Submit')->form(array(
-			'config[check_attachment_content]'	=> 0,
-			'config[img_imagick]'				=> '',
-		));
-		self::submit($form);
+		$form = $crawler->selectButton('Submit')->form();
+		$values = $form->getValues();
+
+		$values["config[check_attachment_content]"] = 0;
+		$form->setValues($values);
+		$crawler = self::submit($form);
 
 		// Request index for correct URL
-		self::request('GET', 'index.php?sid=' . $this->sid);
+		$crawler = self::request('GET', 'index.php?sid=' . $this->sid);
 
 		$crawler = $this->upload_file('disallowed.jpg', 'image/jpeg');
 
 		// Hitting the UNABLE_GET_IMAGE_SIZE error means we passed the
 		// DISALLOWED_CONTENT check
-		$this->assertContainsLang('UNABLE_GET_IMAGE_SIZE', $crawler->text());
-
-		// Reset check_attachment_content to default (enabled)
-		$crawler = self::request('GET', 'adm/index.php?sid=' . $this->sid . '&i=acp_attachments&mode=attach');
-
-		$form = $crawler->selectButton('Submit')->form(array(
-			'config[check_attachment_content]'	=> 1,
-		));
-		self::submit($form);
+		$this->assertEquals($this->lang('UNABLE_GET_IMAGE_SIZE'), $crawler->filter('p.error')->text());
 	}
 
 	public function test_too_large()

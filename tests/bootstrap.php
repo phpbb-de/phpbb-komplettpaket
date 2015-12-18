@@ -19,7 +19,6 @@ require_once $phpbb_root_path . 'includes/startup.php';
 $table_prefix = 'phpbb_';
 require_once $phpbb_root_path . 'includes/constants.php';
 require_once $phpbb_root_path . 'phpbb/class_loader.' . $phpEx;
-require_once($phpbb_root_path . 'includes/utf/utf_tools.' . $phpEx);
 
 $phpbb_class_loader_mock = new \phpbb\class_loader('phpbb_mock_', $phpbb_root_path . '../tests/mock/', "php");
 $phpbb_class_loader_mock->register();
@@ -32,10 +31,5 @@ require_once 'test_framework/phpbb_test_case_helpers.php';
 require_once 'test_framework/phpbb_test_case.php';
 require_once 'test_framework/phpbb_database_test_case.php';
 require_once 'test_framework/phpbb_database_test_connection_manager.php';
+require_once 'test_framework/phpbb_mink_test_case.php';
 require_once 'test_framework/phpbb_functional_test_case.php';
-require_once 'test_framework/phpbb_ui_test_case.php';
-
-if (version_compare(PHP_VERSION, '5.3.19', ">=") && file_exists(__DIR__ . '/vendor/autoload.php'))
-{
-	require_once __DIR__ . '/vendor/autoload.php';
-}

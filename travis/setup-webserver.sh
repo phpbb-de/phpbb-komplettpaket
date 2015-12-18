@@ -11,6 +11,12 @@
 set -e
 set -x
 
+if [ "$TRAVIS_PHP_VERSION" = 'hhvm' ]
+then
+	# Add PPA providing dependencies for recent HHVM on Ubuntu 12.04.
+	sudo add-apt-repository -y ppa:mapnik/boost
+fi
+
 sudo apt-get update
 sudo apt-get install -y nginx realpath
 
@@ -24,9 +30,11 @@ APP_SOCK=$(realpath "$DIR")/php-app.sock
 
 if [ "$TRAVIS_PHP_VERSION" = 'hhvm' ]
 then
+	# Upgrade to a recent stable version of HHVM
+	sudo apt-get -o Dpkg::Options::="--force-confnew" install -y hhvm-nightly
+
 	HHVM_LOG=$(realpath "$DIR")/hhvm.log
 
-    sudo service hhvm stop
 	sudo hhvm \
 		--mode daemon \
 		--user "$USER" \
@@ -64,11 +72,8 @@ echo "
 		index	index.php index.html;
 
 		location ~ \.php {
-			include							fastcgi_params;
-			fastcgi_split_path_info			^(.+\.php)(/.*)$;
-			fastcgi_param PATH_INFO			\$fastcgi_path_info;
-			fastcgi_param SCRIPT_FILENAME	\$document_root\$fastcgi_script_name;
-			fastcgi_pass					unix:$APP_SOCK;
+			fastcgi_pass	unix:$APP_SOCK;
+			include			fastcgi_params;
 		}
 	}
 " | sudo tee $NGINX_CONF > /dev/null

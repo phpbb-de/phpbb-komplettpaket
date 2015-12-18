@@ -14,6 +14,7 @@
 
 namespace phpbb\template\twig\node;
 
+
 class includephp extends \Twig_Node
 {
 	/** @var \Twig_Environment */
@@ -46,8 +47,7 @@ class includephp extends \Twig_Node
 			return;
 		}
 
-		if ($this->getAttribute('ignore_missing'))
-		{
+		if ($this->getAttribute('ignore_missing')) {
 			$compiler
 				->write("try {\n")
 				->indent()
@@ -76,8 +76,7 @@ class includephp extends \Twig_Node
 			->write("}\n")
 		;
 
-		if ($this->getAttribute('ignore_missing'))
-		{
+		if ($this->getAttribute('ignore_missing')) {
 			$compiler
 				->outdent()
 				->write("} catch (\Twig_Error_Loader \$e) {\n")

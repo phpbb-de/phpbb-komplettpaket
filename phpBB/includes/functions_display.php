@@ -150,7 +150,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 	$sql = $db->sql_build_query('SELECT', $sql_ary);
 	$result = $db->sql_query($sql);
 
-	$forum_tracking_info = $valid_categories = array();
+	$forum_tracking_info = array();
 	$branch_root_id = $root_data['forum_id'];
 
 	$phpbb_content_visibility = $phpbb_container->get('content.visibility');
@@ -250,12 +250,6 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			}
 		}
 
-		// Fill list of categories with forums
-		if (isset($forum_rows[$row['parent_id']]))
-		{
-			$valid_categories[$row['parent_id']] = true;
-		}
-
 		//
 		if ($row['parent_id'] == $root_data['forum_id'] || $row['parent_id'] == $branch_root_id)
 		{
@@ -273,7 +267,6 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				$branch_root_id = $forum_id;
 			}
 			$forum_rows[$parent_id]['forum_id_last_post'] = $row['forum_id'];
-			$forum_rows[$parent_id]['forum_password_last_post'] = $row['forum_password'];
 			$forum_rows[$parent_id]['orig_forum_last_post_time'] = $row['forum_last_post_time'];
 		}
 		else if ($row['forum_type'] != FORUM_CAT)
@@ -315,7 +308,6 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				$forum_rows[$parent_id]['forum_last_poster_name'] = $row['forum_last_poster_name'];
 				$forum_rows[$parent_id]['forum_last_poster_colour'] = $row['forum_last_poster_colour'];
 				$forum_rows[$parent_id]['forum_id_last_post'] = $forum_id;
-				$forum_rows[$parent_id]['forum_password_last_post'] = $row['forum_password'];
 			}
 		}
 
@@ -383,42 +375,14 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		get_moderators($forum_moderators, $forum_ids_moderator);
 	}
 
-	/**
-	* Event to perform additional actions before the forum list is being generated
-	*
-	* @event core.display_forums_before
-	* @var	array	active_forum_ary	Array with forum data to display active topics
-	* @var	bool	display_moderators	Flag indicating if we display forum moderators
-	* @var	array	forum_moderators	Array with forum moderators list
-	* @var	array	forum_rows			Data array of all forums we display
-	* @var	bool	return_moderators	Flag indicating if moderators list should be returned
-	* @var	array	root_data			Array with the root forum data
-	* @since 3.1.4-RC1
-	*/
-	$vars = array(
-		'active_forum_ary',
-		'display_moderators',
-		'forum_moderators',
-		'forum_rows',
-		'return_moderators',
-		'root_data',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.display_forums_before', compact($vars)));
-
 	// Used to tell whatever we have to create a dummy category or not.
 	$last_catless = true;
 	foreach ($forum_rows as $row)
 	{
-		// Category
+		// Empty category
 		if ($row['parent_id'] == $root_data['forum_id'] && $row['forum_type'] == FORUM_CAT)
 		{
-			// Do not display categories without any forums to display
-			if (!isset($valid_categories[$row['forum_id']]))
-			{
-				continue;
-			}
-
-			$cat_row = array(
+			$template->assign_block_vars('forumrow', array(
 				'S_IS_CAT'				=> true,
 				'FORUM_ID'				=> $row['forum_id'],
 				'FORUM_NAME'			=> $row['forum_name'],
@@ -427,32 +391,8 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				'FORUM_FOLDER_IMG_SRC'	=> '',
 				'FORUM_IMAGE'			=> ($row['forum_image']) ? '<img src="' . $phpbb_root_path . $row['forum_image'] . '" alt="' . $user->lang['FORUM_CAT'] . '" />' : '',
 				'FORUM_IMAGE_SRC'		=> ($row['forum_image']) ? $phpbb_root_path . $row['forum_image'] : '',
-				'U_VIEWFORUM'			=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $row['forum_id']),
+				'U_VIEWFORUM'			=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $row['forum_id']))
 			);
-
-			/**
-			* Modify the template data block of the 'category'
-			*
-			* This event is triggered once per 'category'
-			*
-			* @event core.display_forums_modify_category_template_vars
-			* @var	array	cat_row			Template data of the 'category'
-			* @var	bool	catless			The flag indicating whether the 'category' has a parent category
-			* @var	bool	last_catless	The flag indicating whether the last forum had a parent category
-			* @var	array	root_data		Array with the root forum data
-			* @var	array	row				The data of the 'category'
-			* @since 3.1.0-RC4
-			*/
-			$vars = array(
-				'cat_row',
-				'catless',
-				'last_catless',
-				'root_data',
-				'row',
-			);
-			extract($phpbb_dispatcher->trigger_event('core.display_forums_modify_category_template_vars', compact($vars)));
-
-			$template->assign_block_vars('forumrow', $cat_row);
 
 			continue;
 		}
@@ -536,15 +476,8 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		// Create last post link information, if appropriate
 		if ($row['forum_last_post_id'])
 		{
-			if ($row['forum_password_last_post'] === '' && $auth->acl_get('f_read', $row['forum_id_last_post']))
-			{
-				$last_post_subject = censor_text($row['forum_last_post_subject']);
-				$last_post_subject_truncated = truncate_string($last_post_subject, 30, 255, false, $user->lang['ELLIPSIS']);
-			}
-			else
-			{
-				$last_post_subject = $last_post_subject_truncated = '';
-			}
+			$last_post_subject = $row['forum_last_post_subject'];
+			$last_post_subject_truncated = truncate_string(censor_text($last_post_subject), 30, 255, false, $user->lang['ELLIPSIS']);
 			$last_post_time = $user->format_date($row['forum_last_post_time']);
 			$last_post_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", 'f=' . $row['forum_id_last_post'] . '&amp;p=' . $row['forum_last_post_id']) . '#p' . $row['forum_last_post_id'];
 		}
@@ -604,7 +537,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			'S_LOCKED_FORUM'	=> ($row['forum_status'] == ITEM_LOCKED) ? true : false,
 			'S_LIST_SUBFORUMS'	=> ($row['display_subforum_list']) ? true : false,
 			'S_SUBFORUMS'		=> (sizeof($subforums_list)) ? true : false,
-			'S_DISPLAY_SUBJECT'	=>	($last_post_subject !== '' && $config['display_last_subject']) ? true : false,
+			'S_DISPLAY_SUBJECT'	=>	($last_post_subject && $config['display_last_subject'] && !$row['forum_password'] && $auth->acl_get('f_read', $row['forum_id'])) ? true : false,
 			'S_FEED_ENABLED'	=> ($config['feed_forum'] && !phpbb_optionget(FORUM_OPTION_FEED_EXCLUDE, $row['forum_options']) && $row['forum_type'] == FORUM_POST) ? true : false,
 
 			'FORUM_ID'				=> $row['forum_id'],
@@ -617,8 +550,8 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			'FORUM_FOLDER_IMG_ALT'	=> isset($user->lang[$folder_alt]) ? $user->lang[$folder_alt] : '',
 			'FORUM_IMAGE'			=> ($row['forum_image']) ? '<img src="' . $phpbb_root_path . $row['forum_image'] . '" alt="' . $user->lang[$folder_alt] . '" />' : '',
 			'FORUM_IMAGE_SRC'		=> ($row['forum_image']) ? $phpbb_root_path . $row['forum_image'] : '',
-			'LAST_POST_SUBJECT'		=> $last_post_subject,
-			'LAST_POST_SUBJECT_TRUNCATED'	=> $last_post_subject_truncated,
+			'LAST_POST_SUBJECT'		=> (!$row['forum_password'] && $auth->acl_get('f_read', $row['forum_id'])) ? censor_text($last_post_subject) : "",
+			'LAST_POST_SUBJECT_TRUNCATED'	=> (!$row['forum_password'] && $auth->acl_get('f_read', $row['forum_id'])) ? $last_post_subject_truncated : "",
 			'LAST_POST_TIME'		=> $last_post_time,
 			'LAST_POSTER'			=> get_username_string('username', $row['forum_last_poster_id'], $row['forum_last_poster_name'], $row['forum_last_poster_colour']),
 			'LAST_POSTER_COLOUR'	=> get_username_string('colour', $row['forum_last_poster_id'], $row['forum_last_poster_name'], $row['forum_last_poster_colour']),
@@ -692,28 +625,6 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		'UNAPPROVED_POST_IMG'	=> $user->img('icon_topic_unapproved', 'POSTS_UNAPPROVED_FORUM'),
 	));
 
-	/**
-	* Event to perform additional actions after the forum list has been generated
-	*
-	* @event core.display_forums_after
-	* @var	array	active_forum_ary	Array with forum data to display active topics
-	* @var	bool	display_moderators	Flag indicating if we display forum moderators
-	* @var	array	forum_moderators	Array with forum moderators list
-	* @var	array	forum_rows			Data array of all forums we display
-	* @var	bool	return_moderators	Flag indicating if moderators list should be returned
-	* @var	array	root_data			Array with the root forum data
-	* @since 3.1.0-RC5
-	*/
-	$vars = array(
-		'active_forum_ary',
-		'display_moderators',
-		'forum_moderators',
-		'forum_rows',
-		'return_moderators',
-		'root_data',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.display_forums_after', compact($vars)));
-
 	if ($return_moderators)
 	{
 		return array($active_forum_ary, $forum_moderators);
@@ -753,14 +664,12 @@ function generate_forum_rules(&$forum_data)
 function generate_forum_nav(&$forum_data)
 {
 	global $db, $user, $template, $auth, $config;
-	global $phpEx, $phpbb_root_path, $phpbb_dispatcher;
+	global $phpEx, $phpbb_root_path;
 
 	if (!$auth->acl_get('f_list', $forum_data['forum_id']))
 	{
 		return;
 	}
-
-	$navlinks = $navlinks_parents = $forum_template_data = array();
 
 	// Get forum parents
 	$forum_parents = get_forum_parents($forum_data);
@@ -780,59 +689,35 @@ function generate_forum_nav(&$forum_data)
 				continue;
 			}
 
-			$navlinks_parents[] = array(
+			$template->assign_block_vars('navlinks', array(
 				'S_IS_CAT'		=> ($parent_type == FORUM_CAT) ? true : false,
 				'S_IS_LINK'		=> ($parent_type == FORUM_LINK) ? true : false,
 				'S_IS_POST'		=> ($parent_type == FORUM_POST) ? true : false,
 				'FORUM_NAME'	=> $parent_name,
 				'FORUM_ID'		=> $parent_forum_id,
 				'MICRODATA'		=> $microdata_attr . '="' . $parent_forum_id . '"',
-				'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $parent_forum_id),
+				'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $parent_forum_id))
 			);
 		}
 	}
 
-	$navlinks = array(
+	$template->assign_block_vars('navlinks', array(
 		'S_IS_CAT'		=> ($forum_data['forum_type'] == FORUM_CAT) ? true : false,
 		'S_IS_LINK'		=> ($forum_data['forum_type'] == FORUM_LINK) ? true : false,
 		'S_IS_POST'		=> ($forum_data['forum_type'] == FORUM_POST) ? true : false,
 		'FORUM_NAME'	=> $forum_data['forum_name'],
 		'FORUM_ID'		=> $forum_data['forum_id'],
 		'MICRODATA'		=> $microdata_attr . '="' . $forum_data['forum_id'] . '"',
-		'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $forum_data['forum_id']),
+		'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $forum_data['forum_id']))
 	);
 
-	$forum_template_data = array(
+	$template->assign_vars(array(
 		'FORUM_ID' 		=> $forum_data['forum_id'],
 		'FORUM_NAME'	=> $forum_data['forum_name'],
 		'FORUM_DESC'	=> generate_text_for_display($forum_data['forum_desc'], $forum_data['forum_desc_uid'], $forum_data['forum_desc_bitfield'], $forum_data['forum_desc_options']),
 
 		'S_ENABLE_FEEDS_FORUM'	=> ($config['feed_forum'] && $forum_data['forum_type'] == FORUM_POST && !phpbb_optionget(FORUM_OPTION_FEED_EXCLUDE, $forum_data['forum_options'])) ? true : false,
-	);
-
-	/**
-	* Event to modify the navlinks text
-	*
-	* @event core.generate_forum_nav
-	* @var	array	forum_data				Array with the forum data
-	* @var	array	forum_template_data		Array with generic forum template data
-	* @var	string	microdata_attr			The microdata attribute
-	* @var	array	navlinks_parents		Array with the forum parents navlinks data
-	* @var	array	navlinks				Array with the forum navlinks data
-	* @since 3.1.5-RC1
-	*/
-	$vars = array(
-		'forum_data',
-		'forum_template_data',
-		'microdata_attr',
-		'navlinks_parents',
-		'navlinks',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.generate_forum_nav', compact($vars)));
-
-	$template->assign_block_vars_array('navlinks', $navlinks_parents);
-	$template->assign_block_vars('navlinks', $navlinks);
-	$template->assign_vars($forum_template_data);
+	));
 
 	return;
 }
@@ -1178,8 +1063,7 @@ function display_reasons($reason_id = 0)
 function display_user_activity(&$userdata)
 {
 	global $auth, $template, $db, $user;
-	global $phpbb_root_path, $phpEx;
-	global $phpbb_container, $phpbb_dispatcher;
+	global $phpbb_root_path, $phpEx, $phpbb_container;
 
 	// Do not display user activity for users having more than 5000 posts...
 	if ($userdata['user_posts'] > 5000)
@@ -1249,18 +1133,6 @@ function display_user_activity(&$userdata)
 			$db->sql_freeresult($result);
 		}
 	}
-
-	/**
-	* Alter list of forums and topics to display as active
-	*
-	* @event core.display_user_activity_modify_actives
-	* @var	array	userdata						User's data
-	* @var	array	active_f_row					List of active forums
-	* @var	array	active_t_row					List of active posts
-	* @since 3.1.0-RC3
-	*/
-	$vars = array('userdata', 'active_f_row', 'active_t_row');
-	extract($phpbb_dispatcher->trigger_event('core.display_user_activity_modify_actives', compact($vars)));
 
 	$userdata['active_t_row'] = $active_t_row;
 	$userdata['active_f_row'] = $active_f_row;
@@ -1493,34 +1365,17 @@ function watch_topic_forum($mode, &$s_watching, $user_id, $forum_id, $topic_id, 
 /**
 * Get user rank title and image
 *
-* @param array $user_data the current stored users data
+* @param int $user_rank the current stored users rank id
 * @param int $user_posts the users number of posts
-*
-* @return array An associative array containing the rank title (title), the rank image source (img) and the rank image as full img tag (img)
+* @param string &$rank_title the rank title will be stored here after execution
+* @param string &$rank_img the rank image as full img tag is stored here after execution
+* @param string &$rank_img_src the rank image source is stored here after execution
 *
 * Note: since we do not want to break backwards-compatibility, this function will only properly assign ranks to guests if you call it for them with user_posts == false
 */
-function phpbb_get_user_rank($user_data, $user_posts)
+function get_user_rank($user_rank, $user_posts, &$rank_title, &$rank_img, &$rank_img_src)
 {
-	global $ranks, $config, $phpbb_root_path, $phpbb_path_helper, $phpbb_dispatcher;
-
-	$user_rank_data = array(
-		'title'		=> null,
-		'img'		=> null,
-		'img_src'	=> null,
-	);
-
-	/**
-	* Preparing a user's rank before displaying
-	*
-	* @event core.modify_user_rank
-	* @var	array	user_data		Array with user's data
-	* @var	int		user_posts		User_posts to change
-	* @since 3.1.0-RC4
-	*/
-
-	$vars = array('user_data', 'user_posts');
-	extract($phpbb_dispatcher->trigger_event('core.modify_user_rank', compact($vars)));
+	global $ranks, $config, $phpbb_root_path, $phpbb_path_helper;
 
 	if (empty($ranks))
 	{
@@ -1528,14 +1383,11 @@ function phpbb_get_user_rank($user_data, $user_posts)
 		$ranks = $cache->obtain_ranks();
 	}
 
-	if (!empty($user_data['user_rank']))
+	if (!empty($user_rank))
 	{
-
-		$user_rank_data['title'] = (isset($ranks['special'][$user_data['user_rank']]['rank_title'])) ? $ranks['special'][$user_data['user_rank']]['rank_title'] : '';
-
-		$user_rank_data['img_src'] = (!empty($ranks['special'][$user_data['user_rank']]['rank_image'])) ? $phpbb_path_helper->update_web_root_path($phpbb_root_path . $config['ranks_path'] . '/' . $ranks['special'][$user_data['user_rank']]['rank_image']) : '';
-
-		$user_rank_data['img'] = (!empty($ranks['special'][$user_data['user_rank']]['rank_image'])) ? '<img src="' . $user_rank_data['img_src'] . '" alt="' . $ranks['special'][$user_data['user_rank']]['rank_title'] . '" title="' . $ranks['special'][$user_data['user_rank']]['rank_title'] . '" />' : '';
+		$rank_title = (isset($ranks['special'][$user_rank]['rank_title'])) ? $ranks['special'][$user_rank]['rank_title'] : '';
+		$rank_img_src = (!empty($ranks['special'][$user_rank]['rank_image'])) ? $phpbb_path_helper->update_web_root_path($phpbb_root_path . $config['ranks_path'] . '/' . $ranks['special'][$user_rank]['rank_image']) : '';
+		$rank_img = (!empty($ranks['special'][$user_rank]['rank_image'])) ? '<img src="' . $rank_img_src . '" alt="' . $ranks['special'][$user_rank]['rank_title'] . '" title="' . $ranks['special'][$user_rank]['rank_title'] . '" />' : '';
 	}
 	else if ($user_posts !== false)
 	{
@@ -1545,29 +1397,66 @@ function phpbb_get_user_rank($user_data, $user_posts)
 			{
 				if ($user_posts >= $rank['rank_min'])
 				{
-					$user_rank_data['title'] = $rank['rank_title'];
-					$user_rank_data['img_src'] = (!empty($rank['rank_image'])) ? $phpbb_path_helper->update_web_root_path($phpbb_root_path . $config['ranks_path'] . '/' . $rank['rank_image']) : '';
-					$user_rank_data['img'] = (!empty($rank['rank_image'])) ? '<img src="' . $user_rank_data['img_src'] . '" alt="' . $rank['rank_title'] . '" title="' . $rank['rank_title'] . '" />' : '';
+					$rank_title = $rank['rank_title'];
+					$rank_img_src = (!empty($rank['rank_image'])) ? $phpbb_path_helper->update_web_root_path($phpbb_root_path . $config['ranks_path'] . '/' . $rank['rank_image']) : '';
+					$rank_img = (!empty($rank['rank_image'])) ? '<img src="' . $rank_img_src . '" alt="' . $rank['rank_title'] . '" title="' . $rank['rank_title'] . '" />' : '';
 					break;
 				}
 			}
 		}
 	}
+}
 
-	return $user_rank_data;
+/**
+* Generate a list of archive types available for compressing attachments
+*
+* @param string $param_key Either topic_id or post_id
+* @param string $param_val The value of the topic or post id
+* @param string $phpbb_root_path The root path of the phpBB installation
+* @param string $phpEx The PHP extension
+*
+* @return array Array containing the link and the type of compression
+*/
+function phpbb_gen_download_links($param_key, $param_val, $phpbb_root_path, $phpEx)
+{
+	if (!class_exists('compress'))
+	{
+		require $phpbb_root_path . 'includes/functions_compress.' . $phpEx;
+	}
+
+	$methods = compress::methods();
+	// Sort by preferred type.
+	$methods = array_intersect(array('.zip', '.tar.bz2', '.tar.gz', '.tar'), $methods);
+	$links = array();
+
+	foreach ($methods as $method)
+	{
+		$exploded = explode('.', $method);
+		$type = array_pop($exploded);
+		$params = array('archive' => $method);
+		$params[$param_key] = $param_val;
+
+		$links[] = array(
+			'LINK' => append_sid("{$phpbb_root_path}download/file.$phpEx", $params),
+			'TYPE' => $type,
+		);
+	}
+
+	return $links;
 }
 
 /**
 * Prepare profile data
 */
-function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabled = false, $check_can_receive_pm = true)
+function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabled = false)
 {
 	global $config, $auth, $user, $phpEx, $phpbb_root_path, $phpbb_dispatcher;
 
 	$username = $data['username'];
 	$user_id = $data['user_id'];
 
-	$user_rank_data = phpbb_get_user_rank($data, (($user_id == ANONYMOUS) ? false : $data['user_posts']));
+	$rank_title = $rank_img = $rank_img_src = '';
+	get_user_rank($data['user_rank'], (($user_id == ANONYMOUS) ? false : $data['user_posts']), $rank_title, $rank_img, $rank_img_src);
 
 	if ((!empty($data['user_allow_viewemail']) && $auth->acl_get('u_sendemail')) || $auth->acl_get('a_user'))
 	{
@@ -1628,7 +1517,7 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 	}
 
 	// Can this user receive a Private Message?
-	$can_receive_pm = $check_can_receive_pm && (
+	$can_receive_pm = (
 		// They must be a "normal" user
 		$data['user_type'] != USER_IGNORE &&
 
@@ -1648,7 +1537,7 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 	// Dump it out to the template
 	$template_data = array(
 		'AGE'			=> $age,
-		'RANK_TITLE'	=> $user_rank_data['title'],
+		'RANK_TITLE'	=> $rank_title,
 		'JOINED'		=> $user->format_date($data['user_regdate']),
 		'LAST_ACTIVE'	=> (empty($last_active)) ? ' - ' : $user->format_date($last_active),
 		'POSTS'			=> ($data['user_posts']) ? $data['user_posts'] : 0,
@@ -1664,8 +1553,8 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 		'AVATAR_IMG'		=> phpbb_get_user_avatar($data),
 		'ONLINE_IMG'		=> (!$config['load_onlinetrack']) ? '' : (($online) ? $user->img('icon_user_online', 'ONLINE') : $user->img('icon_user_offline', 'OFFLINE')),
 		'S_ONLINE'			=> ($config['load_onlinetrack'] && $online) ? true : false,
-		'RANK_IMG'			=> $user_rank_data['img'],
-		'RANK_IMG_SRC'		=> $user_rank_data['img_src'],
+		'RANK_IMG'			=> $rank_img,
+		'RANK_IMG_SRC'		=> $rank_img_src,
 		'S_JABBER_ENABLED'	=> ($config['jab_enable']) ? true : false,
 
 		'S_WARNINGS'	=> ($auth->acl_getf_global('m_') || $auth->acl_get('m_warn')) ? true : false,
@@ -1677,8 +1566,8 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 		'U_EMAIL'		=> $email,
 		'U_JABBER'		=> ($data['user_jabber'] && $auth->acl_get('u_sendim')) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", 'mode=contact&amp;action=jabber&amp;u=' . $user_id) : '',
 
-		'USER_JABBER'		=> ($config['jab_enable']) ? $data['user_jabber'] : '',
-		'USER_JABBER_IMG'	=> ($config['jab_enable'] && $data['user_jabber']) ? $user->img('icon_contact_jabber', $data['user_jabber']) : '',
+		'USER_JABBER'		=> $data['user_jabber'],
+		'USER_JABBER_IMG'	=> ($data['user_jabber']) ? $user->img('icon_contact_jabber', $data['user_jabber']) : '',
 
 		'L_SEND_EMAIL_USER' => $user->lang('SEND_EMAIL_USER', $username),
 		'L_CONTACT_USER'	=> $user->lang('CONTACT_USER', $username),

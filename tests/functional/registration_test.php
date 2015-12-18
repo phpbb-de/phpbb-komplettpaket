@@ -45,23 +45,12 @@ class phpbb_functional_registration_test extends phpbb_functional_test_case
 		$form = $crawler->selectButton('Submit')->form(array(
 			'username'			=> 'user-reg-test',
 			'email'				=> 'user-reg-test@phpbb.com',
-			'new_password'		=> 'user-reg-testuser-reg-test',
-			'password_confirm'	=> 'user-reg-testuser-reg-test',
+			'new_password'		=> 'testtest',
+			'password_confirm'	=> 'testtest',
 		));
 		$form['tz']->select('Europe/Berlin');
 		$crawler = self::submit($form);
 
 		$this->assertContainsLang('ACCOUNT_ADDED', $crawler->filter('#message')->text());
-	}
-
-	/**
-	 * @depends test_register_new_account
-	 */
-	public function test_default_subscription_options()
-	{
-		$this->login('user-reg-test');
-		$crawler = self::request('GET', 'ucp.php?i=ucp_notifications&mode=notification_options&sid=' . $this->sid);
-		$this->assert_checkbox_is_checked($crawler, 'notification.type.post_notification.method.email');
-		$this->assert_checkbox_is_checked($crawler, 'notification.type.topic_notification.method.email');
 	}
 }

@@ -18,7 +18,13 @@ namespace phpbb\cache\driver;
 */
 class file extends \phpbb\cache\driver\base
 {
+	var $vars = array();
 	var $var_expires = array();
+	var $is_modified = false;
+
+	var $sql_rowset = array();
+	var $sql_row_pointer = array();
+	var $cache_dir = '';
 
 	/**
 	* Set cache path
@@ -44,9 +50,16 @@ class file extends \phpbb\cache\driver\base
 	*/
 	function unload()
 	{
-		parent::unload();
+		$this->save();
+		unset($this->vars);
 		unset($this->var_expires);
+		unset($this->sql_rowset);
+		unset($this->sql_row_pointer);
+
+		$this->vars = array();
 		$this->var_expires = array();
+		$this->sql_rowset = array();
+		$this->sql_row_pointer = array();
 	}
 
 	/**
@@ -153,6 +166,8 @@ class file extends \phpbb\cache\driver\base
 	{
 		if ($var_name[0] == '_')
 		{
+			global $phpEx;
+
 			if (!$this->_exists($var_name))
 			{
 				return false;
@@ -188,8 +203,85 @@ class file extends \phpbb\cache\driver\base
 	*/
 	function purge()
 	{
-		parent::purge();
+		// Purge all phpbb cache files
+		try
+		{
+			$iterator = new \DirectoryIterator($this->cache_dir);
+		}
+		catch (Exception $e)
+		{
+			return;
+		}
+
+		foreach ($iterator as $fileInfo)
+		{
+			if ($fileInfo->isDot())
+			{
+				continue;
+			}
+			$filename = $fileInfo->getFilename();
+			if ($fileInfo->isDir())
+			{
+				$this->remove_dir($fileInfo->getPathname());
+			}
+			else if (strpos($filename, 'container_') === 0 ||
+				strpos($filename, 'url_matcher') === 0 ||
+				strpos($filename, 'sql_') === 0 ||
+				strpos($filename, 'data_') === 0)
+			{
+				$this->remove_file($fileInfo->getPathname());
+			}
+		}
+
+		unset($this->vars);
+		unset($this->var_expires);
+		unset($this->sql_rowset);
+		unset($this->sql_row_pointer);
+
+		$this->vars = array();
 		$this->var_expires = array();
+		$this->sql_rowset = array();
+		$this->sql_row_pointer = array();
+
+		$this->is_modified = false;
+	}
+
+	/**
+	* Remove directory
+	*
+	* @param string $dir Directory to remove
+	*
+	* @return null
+	*/
+	protected function remove_dir($dir)
+	{
+		try
+		{
+			$iterator = new \DirectoryIterator($dir);
+		}
+		catch (Exception $e)
+		{
+			return;
+		}
+
+		foreach ($iterator as $fileInfo)
+		{
+			if ($fileInfo->isDot())
+			{
+				continue;
+			}
+
+			if ($fileInfo->isDir())
+			{
+				$this->remove_dir($fileInfo->getPathname());
+			}
+			else
+			{
+				$this->remove_file($fileInfo->getPathname());
+			}
+		}
+
+		@rmdir($dir);
 	}
 
 	/**
@@ -279,7 +371,6 @@ class file extends \phpbb\cache\driver\base
 		if ($var_name[0] == '_')
 		{
 			global $phpEx;
-			$var_name = $this->clean_varname($var_name);
 			return file_exists($this->cache_dir . 'data' . $var_name . ".$phpEx");
 		}
 		else
@@ -296,6 +387,26 @@ class file extends \phpbb\cache\driver\base
 
 			return (time() > $this->var_expires[$var_name]) ? false : isset($this->vars[$var_name]);
 		}
+	}
+
+	/**
+	* {@inheritDoc}
+	*/
+	function sql_load($query)
+	{
+		// Remove extra spaces and tabs
+		$query = preg_replace('/[\n\r\s\t]+/', ' ', $query);
+
+		if (($rowset = $this->_read('sql_' . md5($query))) === false)
+		{
+			return false;
+		}
+
+		$query_id = sizeof($this->sql_rowset);
+		$this->sql_rowset[$query_id] = $rowset;
+		$this->sql_row_pointer[$query_id] = 0;
+
+		return $query_id;
 	}
 
 	/**
@@ -325,6 +436,70 @@ class file extends \phpbb\cache\driver\base
 	}
 
 	/**
+	* {@inheritDoc}
+	*/
+	function sql_exists($query_id)
+	{
+		return isset($this->sql_rowset[$query_id]);
+	}
+
+	/**
+	* {@inheritDoc}
+	*/
+	function sql_fetchrow($query_id)
+	{
+		if ($this->sql_row_pointer[$query_id] < sizeof($this->sql_rowset[$query_id]))
+		{
+			return $this->sql_rowset[$query_id][$this->sql_row_pointer[$query_id]++];
+		}
+
+		return false;
+	}
+
+	/**
+	* {@inheritDoc}
+	*/
+	function sql_fetchfield($query_id, $field)
+	{
+		if ($this->sql_row_pointer[$query_id] < sizeof($this->sql_rowset[$query_id]))
+		{
+			return (isset($this->sql_rowset[$query_id][$this->sql_row_pointer[$query_id]][$field])) ? $this->sql_rowset[$query_id][$this->sql_row_pointer[$query_id]++][$field] : false;
+		}
+
+		return false;
+	}
+
+	/**
+	* {@inheritDoc}
+	*/
+	function sql_rowseek($rownum, $query_id)
+	{
+		if ($rownum >= sizeof($this->sql_rowset[$query_id]))
+		{
+			return false;
+		}
+
+		$this->sql_row_pointer[$query_id] = $rownum;
+		return true;
+	}
+
+	/**
+	* {@inheritDoc}
+	*/
+	function sql_freeresult($query_id)
+	{
+		if (!isset($this->sql_rowset[$query_id]))
+		{
+			return false;
+		}
+
+		unset($this->sql_rowset[$query_id]);
+		unset($this->sql_row_pointer[$query_id]);
+
+		return true;
+	}
+
+	/**
 	* Read cached data from a specified file
 	*
 	* @access private
@@ -335,7 +510,6 @@ class file extends \phpbb\cache\driver\base
 	{
 		global $phpEx;
 
-		$filename = $this->clean_varname($filename);
 		$file = "{$this->cache_dir}$filename.$phpEx";
 
 		$type = substr($filename, 0, strpos($filename, '_'));
@@ -518,7 +692,6 @@ class file extends \phpbb\cache\driver\base
 	{
 		global $phpEx;
 
-		$filename = $this->clean_varname($filename);
 		$file = "{$this->cache_dir}$filename.$phpEx";
 
 		$lock = new \phpbb\lock\flock($file);
@@ -589,13 +762,26 @@ class file extends \phpbb\cache\driver\base
 	}
 
 	/**
-	* Replace slashes in the file name
+	* Removes/unlinks file
 	*
-	* @param string $varname name of a cache variable
-	* @return string $varname name that is safe to use as a filename
+	* @param string $filename Filename to remove
+	* @param bool $check Check file permissions
+	* @return bool True if the file was successfully removed, otherwise false
 	*/
-	protected function clean_varname($varname)
+	function remove_file($filename, $check = false)
 	{
-		return str_replace('/', '-', $varname);
+		if (!function_exists('phpbb_is_writable'))
+		{
+			global $phpbb_root_path, $phpEx;
+			include($phpbb_root_path . 'includes/functions.' . $phpEx);
+		}
+
+		if ($check && !phpbb_is_writable($this->cache_dir))
+		{
+			// E_USER_ERROR - not using language entry - intended.
+			trigger_error('Unable to remove files within ' . $this->cache_dir . '. Please check directory permissions.', E_USER_ERROR);
+		}
+
+		return @unlink($filename);
 	}
 }

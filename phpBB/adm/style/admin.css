@@ -17,10 +17,6 @@
 	font-size: 100%;
 }
 
-abbr {
-	text-decoration: none;
-}
-
 body, div, p, th, td, li, dd {
 	font-size: x-small;
 	voice-family: "\"}\"";
@@ -113,14 +109,6 @@ hr {
 	text-align: center;
 }
 
-.search-box {
-	float: left;
-}
-
-.rtl .search-box {
-	float: right;
-}
-
 .small {
 	font-size: 0.85em;
 }
@@ -166,10 +154,6 @@ a:active {
 	font-weight: bold;
 }
 
-a#maincontent, a#acl, a#assigned_to {
-	display: block;
-}
-
 /* List items */
 ul, ol {
 	list-style-position: inside;
@@ -190,6 +174,7 @@ li {
 }
 
 #page-header {
+	clear: both;
 	text-align: right;
 	background: url("../images/phpbb_logo.png") top left no-repeat;
 	height: 54px;
@@ -218,7 +203,12 @@ li {
 }
 
 #page-body {
+	clear: both;
 	min-width: 650px;
+}
+
+#page-footer {
+	clear: both;
 }
 
 .copyright {
@@ -343,6 +333,12 @@ li {
 	list-style: none;
 	margin: 0;
 	padding: 0;
+}
+
+#tabs > ul:after {
+	content: '';
+	display: block;
+	clear: both;
 }
 
 #tabs .tab {
@@ -479,6 +475,7 @@ li {
 /* Main Panel
 ---------------------------------------- */
 #acp {
+	clear: both;
 	position: relative;
 	top: -2px;
 	margin: 0 0 2px;
@@ -726,7 +723,6 @@ td {
 .table1 {
 	border-collapse: separate;
 	border-spacing: 1px;
-	clear: both;
 }
 
 dt#color_palette_placeholder table {
@@ -866,10 +862,10 @@ table.zebra-table tbody tr:nth-child(even) {
 }
 
 /* Deactivated row */
-.row-inactive {
-	color: #999;
+.row-inactive { 
+	color: #999; 
 }
-.row-inactive a, .row-inactive strong {
+.row-inactive a, .row-inactive strong { 
 	color: #888;
 }
 .row-inactive a:hover {
@@ -1136,11 +1132,6 @@ input.langvalue, textarea.langvalue {
 	width: 90%;
 }
 
-input[type="number"] {
-	width: 60px;
-	-moz-padding-end: 0;
-}
-
 optgroup, select {
 	background-color: #FAFAFA;
 	border: 1px solid #666666;
@@ -1235,8 +1226,8 @@ fieldset.quick legend {
 fieldset.tabulated {
 	background: none;
 	margin: 0;
-	margin-top: 5px;
 	padding: 0;
+	padding-top: 5px;
 	border: 0;
 }
 
@@ -1473,7 +1464,7 @@ input:focus, textarea:focus {
 {
 	select, dd select, dd input {
 		max-width: 240px;
-	}
+	}	
 }
 
 /* Submit button fieldset or paragraph
@@ -1685,12 +1676,12 @@ input.button1:focus, input.button2:focus {
 	height: 1%; /* IE tweak (holly hack) */
 	width: auto;
 	text-align: right;
-	margin: 5px 0;
+	margin-top: 5px;
 }
 
 .top-pagination {
 	float: right;
-	margin: 15px 0 5px 0;
+	margin: 15px 0 2px 0;
 }
 
 .rtl .pagination {
@@ -1785,7 +1776,6 @@ li.pagination ul {
 	margin: 10px 0;
 	color: #FFFFFF;
 	text-align: center;
-	clear: both;
 }
 
 .success {
@@ -1887,7 +1877,17 @@ li.pagination ul {
 	vertical-align: middle;
 }
 
-.row, fieldset dl {
+/* Nice method for clearing floated blocks without having to insert any extra markup
+	From http://www.positioniseverything.net/easyclearing.html
+.clearfix:after, #tabs:after, .row:after, #content:after, fieldset dl:after, #page-body:after {
+	content: ".";
+	display: block;
+	height: 0;
+	clear: both;
+	visibility: hidden;
+}*/
+
+.clearfix, .row, #content, fieldset dl, #page-body {
 	overflow: hidden;
 }
 
@@ -2469,21 +2469,4 @@ fieldset.permissions .padding {
 	.responsive-show { display: block !important; }
 	.responsive-show-inline { display: inline !important; }
 	.responsive-show-inline-block { display: inline-block !important; }
-}
-
-.clearfix {
-	overflow: hidden;
-}
-
-.pagination:after,
-#page-header:after,
-#page-body:after,
-#tabs:after,
-#tabs > ul:after,
-#tabs li:after,
-#acp:after,
-#content:after {
-	content: '';
-	clear: both;
-	display: block;
 }

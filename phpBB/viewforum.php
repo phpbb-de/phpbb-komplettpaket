@@ -251,7 +251,7 @@ $s_watching_forum = array(
 	'is_watching'	=> false,
 );
 
-if ($config['allow_forum_notify'] && $forum_data['forum_type'] == FORUM_POST && ($auth->acl_get('f_subscribe', $forum_id) || $user->data['user_id'] == ANONYMOUS))
+if (($config['email_enable'] || $config['jab_enable']) && $config['allow_forum_notify'] && $forum_data['forum_type'] == FORUM_POST && ($auth->acl_get('f_subscribe', $forum_id) || $user->data['user_id'] == ANONYMOUS))
 {
 	$notify_status = (isset($forum_data['notify_status'])) ? $forum_data['notify_status'] : NULL;
 	watch_topic_forum('forum', $s_watching_forum, $user->data['user_id'], $forum_id, 0, $notify_status, $start, $forum_data['forum_name']);
@@ -264,7 +264,7 @@ gen_forum_auth_level('forum', $forum_id, $forum_data['forum_status']);
 $limit_days = array(0 => $user->lang['ALL_TOPICS'], 1 => $user->lang['1_DAY'], 7 => $user->lang['7_DAYS'], 14 => $user->lang['2_WEEKS'], 30 => $user->lang['1_MONTH'], 90 => $user->lang['3_MONTHS'], 180 => $user->lang['6_MONTHS'], 365 => $user->lang['1_YEAR']);
 
 $sort_by_text = array('a' => $user->lang['AUTHOR'], 't' => $user->lang['POST_TIME'], 'r' => $user->lang['REPLIES'], 's' => $user->lang['SUBJECT'], 'v' => $user->lang['VIEWS']);
-$sort_by_sql = array('a' => 't.topic_first_poster_name', 't' => array('t.topic_last_post_time', 't.topic_last_post_id'), 'r' => (($auth->acl_get('m_approve', $forum_id)) ? 't.topic_posts_approved + t.topic_posts_unapproved + t.topic_posts_softdeleted' : 't.topic_posts_approved'), 's' => 't.topic_title', 'v' => 't.topic_views');
+$sort_by_sql = array('a' => 't.topic_first_poster_name', 't' => 't.topic_last_post_time', 'r' => (($auth->acl_get('m_approve', $forum_id)) ? 't.topic_posts_approved + t.topic_posts_unapproved + t.topic_posts_softdeleted' : 't.topic_posts_approved'), 's' => 't.topic_title', 'v' => 't.topic_views');
 
 $s_limit_days = $s_sort_key = $s_sort_dir = $u_sort_param = '';
 gen_sort_selects($limit_days, $sort_by_text, $sort_days, $sort_key, $sort_dir, $s_limit_days, $s_sort_key, $s_sort_dir, $u_sort_param, $default_sort_days, $default_sort_key, $default_sort_dir);
@@ -370,7 +370,7 @@ $template->assign_vars(array(
 	'U_MCP'				=> ($auth->acl_get('m_', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "f=$forum_id&amp;i=main&amp;mode=forum_view", true, $user->session_id) : '',
 	'U_POST_NEW_TOPIC'	=> ($auth->acl_get('f_post', $forum_id) || $user->data['user_id'] == ANONYMOUS) ? append_sid("{$phpbb_root_path}posting.$phpEx", 'mode=post&amp;f=' . $forum_id) : '',
 	'U_VIEW_FORUM'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", "f=$forum_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($start == 0) ? '' : "&amp;start=$start")),
-	'U_CANONICAL'		=> generate_board_url() . '/' . append_sid("viewforum.$phpEx", "f=$forum_id" . (($start) ? "&amp;start=$start" : ''), true, ''),
+	'U_CANONICAL'		=> generate_board_url() . '/' . append_sid("viewforum.$phpEx", "f=$forum_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($start) ? "&amp;start=$start" : ''), true, ''),
 	'U_MARK_TOPICS'		=> ($user->data['is_registered'] || $config['load_anon_lastread']) ? append_sid("{$phpbb_root_path}viewforum.$phpEx", 'hash=' . generate_link_hash('global') . "&amp;f=$forum_id&amp;mark=topics&amp;mark_time=" . time()) : '',
 ));
 
@@ -391,30 +391,11 @@ $sql_array = array(
 /**
 * Event to modify the SQL query before the topic data is retrieved
 *
-* It may also be used to override the above assigned template vars
-*
 * @event core.viewforum_get_topic_data
-* @var	array	forum_data			Array with forum data
-* @var	array	sql_array			The SQL array to get the data of all topics
-* @var	array	forum_id			The forum_id whose topics are being listed
-* @var	array	topics_count		The total number of topics for display
-* @var	array	sort_days			The oldest topic displayable in elapsed days
-* @var	array	sort_key			The sorting by. It is one of the first character of (in low case):
-*									Author, Post time, Replies, Subject, Views
-* @var	array	sort_dir			Either "a" for ascending or "d" for descending
+* @var	array	sql_array		The SQL array to get the data of all topics
 * @since 3.1.0-a1
-* @change 3.1.0-RC4 Added forum_data var
-* @change 3.1.4-RC1 Added forum_id, topics_count, sort_days, sort_key and sort_dir vars
 */
-$vars = array(
-	'forum_data',
-	'sql_array',
-	'forum_id',
-	'topics_count',
-	'sort_days',
-	'sort_key',
-	'sort_dir',
-);
+$vars = array('sql_array');
 extract($phpbb_dispatcher->trigger_event('core.viewforum_get_topic_data', compact($vars)));
 
 $sql_approved = ' AND ' . $phpbb_content_visibility->get_visibility_sql('topic', $forum_id, 't.');
@@ -488,11 +469,11 @@ if ($forum_data['forum_type'] == FORUM_POST)
 
 $forum_tracking_info = array();
 
-if ($user->data['is_registered'] && $config['load_db_lastread'])
+if ($user->data['is_registered'])
 {
 	$forum_tracking_info[$forum_id] = $forum_data['mark_time'];
 
-	if (!empty($global_announce_forums))
+	if (!empty($global_announce_forums) && $config['load_db_lastread'])
 	{
 		$sql = 'SELECT forum_id, mark_time
 			FROM ' . FORUMS_TRACK_TABLE . '
@@ -516,25 +497,16 @@ if ($start > $topics_count / 2)
 	$store_reverse = true;
 
 	// Select the sort order
-	$direction = (($sort_dir == 'd') ? 'ASC' : 'DESC');
+	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'ASC' : 'DESC');
 
-	$sql_limit = $pagination->reverse_limit($start, $sql_limit, $topics_count - sizeof($announcement_list));
-	$sql_start = $pagination->reverse_start($start, $sql_limit, $topics_count - sizeof($announcement_list));
+	$sql_limit = $pagination->reverse_limit($start, $sql_limit, $topics_count);
+	$sql_start = $pagination->reverse_start($start, $sql_limit, $topics_count);
 }
 else
 {
 	// Select the sort order
-	$direction = (($sort_dir == 'd') ? 'DESC' : 'ASC');
+	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'DESC' : 'ASC');
 	$sql_start = $start;
-}
-
-if (is_array($sort_by_sql[$sort_key]))
-{
-	$sql_sort_order = implode(' ' . $direction . ', ', $sort_by_sql[$sort_key]) . ' ' . $direction;
-}
-else
-{
-	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . $direction;
 }
 
 if ($forum_data['forum_type'] == FORUM_POST || !sizeof($active_forum_ary))
@@ -552,50 +524,13 @@ else
 }
 
 // Grab just the sorted topic ids
-$sql_ary = array(
-	'SELECT'	=> 't.topic_id',
-	'FROM'		=> array(
-		TOPICS_TABLE => 't',
-	),
-	'WHERE'		=> "$sql_where
+$sql = 'SELECT t.topic_id
+	FROM ' . TOPICS_TABLE . " t
+	WHERE $sql_where
 		AND t.topic_type IN (" . POST_NORMAL . ', ' . POST_STICKY . ")
 		$sql_approved
-		$sql_limit_time",
-	'ORDER_BY'	=> 't.topic_type ' . ((!$store_reverse) ? 'DESC' : 'ASC') . ', ' . $sql_sort_order,
-);
-
-/**
-* Event to modify the SQL query before the topic ids data is retrieved
-*
-* @event core.viewforum_get_topic_ids_data
-* @var	array	forum_data		Data about the forum
-* @var	array	sql_ary			SQL query array to get the topic ids data
-* @var	string	sql_approved	Topic visibility SQL string
-* @var	int		sql_limit		Number of records to select
-* @var	string	sql_limit_time	SQL string to limit topic_last_post_time data
-* @var	array	sql_sort_order	SQL sorting string
-* @var	int		sql_start		Offset point to start selection from
-* @var	string	sql_where		SQL WHERE clause string
-* @var	bool	store_reverse	Flag indicating if we select from the late pages
-*
-* @since 3.1.0-RC4
-*
-* @changed 3.1.3 Added forum_data
-*/
-$vars = array(
-	'forum_data',
-	'sql_ary',
-	'sql_approved',
-	'sql_limit',
-	'sql_limit_time',
-	'sql_sort_order',
-	'sql_start',
-	'sql_where',
-	'store_reverse',
-);
-extract($phpbb_dispatcher->trigger_event('core.viewforum_get_topic_ids_data', compact($vars)));
-
-$sql = $db->sql_build_query('SELECT', $sql_ary);
+		$sql_limit_time
+	ORDER BY t.topic_type " . ((!$store_reverse) ? 'DESC' : 'ASC') . ', ' . $sql_sort_order;
 $result = $db->sql_query_limit($sql, $sql_limit, $sql_start);
 
 while ($row = $db->sql_fetchrow($result))
@@ -712,10 +647,10 @@ if ($s_display_active)
 
 // We need to remove the global announcements from the forums total topic count,
 // otherwise the number is different from the one on the forum list
-$total_topic_count = $topics_count - sizeof($announcement_list);
+$total_topic_count = $topics_count - sizeof($global_announce_forums);
 
 $base_url = append_sid("{$phpbb_root_path}viewforum.$phpEx", "f=$forum_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : ''));
-$pagination->generate_template_pagination($base_url, 'pagination', 'start', $total_topic_count, $config['topics_per_page'], $start);
+$pagination->generate_template_pagination($base_url, 'pagination', 'start', $topics_count, $config['topics_per_page'], $start);
 
 $template->assign_vars(array(
 	'TOTAL_TOPICS'	=> ($s_display_active) ? false : $user->lang('VIEW_FORUM_TOPICS', (int) $total_topic_count),
@@ -900,28 +835,6 @@ if (sizeof($topic_list))
 		$pagination->generate_template_pagination($view_topic_url, 'topicrow.pagination', 'start', $replies + 1, $config['posts_per_page'], 1, true, true);
 
 		$s_type_switch = ($row['topic_type'] == POST_ANNOUNCE || $row['topic_type'] == POST_GLOBAL) ? 1 : 0;
-
-		/**
-		* Event after the topic data has been assigned to the template
-		*
-		* @event core.viewforum_topic_row_after
-		* @var	array	row				Array with the topic data
-		* @var	array	rowset			Array with topics data (in topic_id => topic_data format)
-		* @var	bool	s_type_switch	Flag indicating if the topic type is [global] announcement
-		* @var	int		topic_id		The topic ID
-		* @var	array	topic_list		Array with current viewforum page topic ids
-		* @var	array	topic_row		Template array with topic data
-		* @since 3.1.3-RC1
-		*/
-		$vars = array(
-			'row',
-			'rowset',
-			's_type_switch',
-			'topic_id',
-			'topic_list',
-			'topic_row',
-		);
-		extract($phpbb_dispatcher->trigger_event('core.viewforum_topic_row_after', compact($vars)));
 
 		if ($unread_topic)
 		{

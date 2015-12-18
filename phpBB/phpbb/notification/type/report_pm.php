@@ -27,7 +27,7 @@ class report_pm extends \phpbb\notification\type\pm
 	*/
 	public function get_type()
 	{
-		return 'notification.type.report_pm';
+		return 'report_pm';
 	}
 
 	/**
@@ -61,7 +61,7 @@ class report_pm extends \phpbb\notification\type\pm
 	* 					Array of data (including keys 'id', 'lang', and 'group')
 	*/
 	public static $notification_option = array(
-		'id'	=> 'notification.type.report',
+		'id'	=> 'report',
 		'lang'	=> 'NOTIFICATION_TYPE_REPORT',
 		'group'	=> 'NOTIFICATION_GROUP_MODERATION',
 	);
@@ -94,7 +94,6 @@ class report_pm extends \phpbb\notification\type\pm
 	*  (copied from post_in_queue)
 	*
 	* @param array $post Data from the post
-	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/
@@ -223,7 +222,7 @@ class report_pm extends \phpbb\notification\type\pm
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->get_data('reporter_id'), false, true);
+		return $this->user_loader->get_avatar($this->get_data('reporter_id'));
 	}
 
 	/**

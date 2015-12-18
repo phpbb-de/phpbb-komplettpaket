@@ -26,17 +26,17 @@ class get extends command
 	{
 		$this
 			->setName('config:get')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_GET_CONFIG'))
+			->setDescription("Gets a configuration option's value")
 			->addArgument(
 				'key',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_OPTION_NAME')
+				"The configuration option's name"
 			)
 			->addOption(
 				'no-newline',
 				null,
 				InputOption::VALUE_NONE,
-				$this->user->lang('CLI_CONFIG_PRINT_WITHOUT_NEWLINE')
+				'Set this option if the value should be printed without a new line at the end.'
 			)
 		;
 	}
@@ -66,7 +66,7 @@ class get extends command
 		}
 		else
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_CONFIG_NOT_EXISTS', $key) . '</error>');
+			$output->writeln("<error>Could not get config $key</error>");
 		}
 	}
 }

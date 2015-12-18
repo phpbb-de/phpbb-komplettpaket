@@ -11,6 +11,10 @@
 *
 */
 
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+
 /**#@+
 * @ignore
 */
@@ -240,7 +244,7 @@ $sub = $request->variable('sub', '');
 // Set PHP error handler to ours
 set_error_handler(defined('PHPBB_MSG_HANDLER') ? PHPBB_MSG_HANDLER : 'msg_handler');
 
-$user = new \phpbb\user('\phpbb\datetime');
+$user = new \phpbb\user();
 $auth = new \phpbb\auth\auth();
 
 // Add own hook handler, if present. :o
@@ -445,7 +449,8 @@ class module
 
 		header('Content-type: text/html; charset=UTF-8');
 		header('Cache-Control: private, no-cache="set-cookie"');
-		header('Expires: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
+		header('Expires: 0');
+		header('Pragma: no-cache');
 
 		return;
 	}

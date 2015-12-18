@@ -30,11 +30,10 @@ class ucp_register
 	function main($id, $mode)
 	{
 		global $config, $db, $user, $auth, $template, $phpbb_root_path, $phpEx;
-		global $request, $phpbb_container, $phpbb_dispatcher;
+		global $request, $phpbb_container;
 
 		//
-		if ($config['require_activation'] == USER_ACTIVATION_DISABLE ||
-			(in_array($config['require_activation'], array(USER_ACTIVATION_SELF, USER_ACTIVATION_ADMIN)) && !$config['email_enable']))
+		if ($config['require_activation'] == USER_ACTIVATION_DISABLE)
 		{
 			trigger_error('UCP_REGISTER_DISABLE');
 		}
@@ -88,8 +87,8 @@ class ucp_register
 		if (!empty($login_link_data))
 		{
 			// Confirm that we have all necessary data
-			$provider_collection = $phpbb_container->get('auth.provider_collection');
-			$auth_provider = $provider_collection->get_provider($request->variable('auth_provider', ''));
+			$auth_provider = 'auth.provider.' . $request->variable('auth_provider', $config['auth_method']);
+			$auth_provider = $phpbb_container->get($auth_provider);
 
 			$result = $auth_provider->login_link_has_necessary_data($login_link_data);
 			if ($result !== null)
@@ -176,16 +175,6 @@ class ucp_register
 			}
 			unset($lang_row);
 
-			/**
-			* Allows to modify the agreements.
-			*
-			* To assign data to the template, use $template->assign_vars()
-			*
-			* @event core.ucp_register_agreement
-			* @since 3.1.6-RC1
-			*/
-			$phpbb_dispatcher->dispatch('core.ucp_register_agreement');
-
 			$this->tpl_name = 'ucp_agreement';
 			return;
 		}
@@ -193,7 +182,8 @@ class ucp_register
 		// The CAPTCHA kicks in here. We can't help that the information gets lost on language change.
 		if ($config['enable_confirm'])
 		{
-			$captcha = $phpbb_container->get('captcha.factory')->get_instance($config['captcha_plugin']);
+			include($phpbb_root_path . 'includes/captcha/captcha_factory.' . $phpEx);
+			$captcha = phpbb_captcha_factory::get_instance($config['captcha_plugin']);
 			$captcha->init(CONFIRM_REG);
 		}
 
@@ -207,19 +197,6 @@ class ucp_register
 			'lang'				=> basename(request_var('lang', $user->lang_name)),
 			'tz'				=> request_var('tz', $timezone),
 		);
-		/**
-		* Add UCP register data before they are assigned to the template or submitted
-		*
-		* To assign data to the template, use $template->assign_vars()
-		*
-		* @event core.ucp_register_data_before
-		* @var	bool	submit		Do we display the form only
-		*							or did the user press submit
-		* @var	array	data		Array with current ucp registration data
-		* @since 3.1.4-RC1
-		*/
-		$vars = array('submit', 'data');
-		extract($phpbb_dispatcher->trigger_event('core.ucp_register_data_before', compact($vars)));
 
 		// Check and initialize some variables if needed
 		if ($submit)
@@ -280,19 +257,6 @@ class ucp_register
 					$error[] = $user->lang['NEW_PASSWORD_ERROR'];
 				}
 			}
-			/**
-			* Check UCP registration data after they are submitted
-			*
-			* @event core.ucp_register_data_after
-			* @var	bool	submit		Do we display the form only
-			*							or did the user press submit
-			* @var	array 	data		Array with current ucp registration data
-			* @var	array	cp_data		Array with custom profile fields data
-			* @var	array 	error		Array with list of errors
-			* @since 3.1.4-RC1
-			*/
-			$vars = array('submit', 'data', 'cp_data', 'error');
-			extract($phpbb_dispatcher->trigger_event('core.ucp_register_data_after', compact($vars)));
 
 			if (!sizeof($error))
 			{
@@ -355,20 +319,6 @@ class ucp_register
 				{
 					$user_row['user_new'] = 1;
 				}
-				/**
-				* Add into $user_row before user_add
-				*
-				* user_add allows adding more data into the users table
-				*
-				* @event core.ucp_register_user_row_after
-				* @var	bool	submit		Do we display the form only
-				*							or did the user press submit
-				* @var	array	cp_data		Array with custom profile fields data
-				* @var	array	user_row	Array with current ucp registration data
-				* @since 3.1.4-RC1
-				*/
-				$vars = array('submit', 'cp_data', 'user_row');
-				extract($phpbb_dispatcher->trigger_event('core.ucp_register_user_row_after', compact($vars)));
 
 				// Register user...
 				$user_id = user_add($user_row, $cp_data);
@@ -440,7 +390,7 @@ class ucp_register
 				if ($config['require_activation'] == USER_ACTIVATION_ADMIN)
 				{
 					$phpbb_notifications = $phpbb_container->get('notification_manager');
-					$phpbb_notifications->add_notifications('notification.type.admin_activate_user', array(
+					$phpbb_notifications->add_notifications('admin_activate_user', array(
 						'user_id'		=> $user_id,
 						'user_actkey'	=> $user_row['user_actkey'],
 						'user_regdate'	=> $user_row['user_regdate'],
@@ -503,7 +453,7 @@ class ucp_register
 			break;
 		}
 
-		$timezone_selects = phpbb_timezone_select($template, $user, $data['tz'], true);
+		$timezone_selects = phpbb_timezone_select($user, $data['tz'], true);
 		$template->assign_vars(array(
 			'ERROR'				=> (sizeof($error)) ? implode('<br />', $error) : '',
 			'USERNAME'			=> $data['username'],
@@ -516,6 +466,8 @@ class ucp_register
 			'L_PASSWORD_EXPLAIN'		=> $user->lang($config['pass_complex'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_pass_chars']), $user->lang('CHARACTERS', (int) $config['max_pass_chars'])),
 
 			'S_LANG_OPTIONS'	=> language_select($data['lang']),
+			'S_TZ_OPTIONS'			=> $timezone_selects['tz_select'],
+			'S_TZ_DATE_OPTIONS'		=> $timezone_selects['tz_dates'],
 			'S_TZ_PRESELECT'	=> !$submit,
 			'S_CONFIRM_REFRESH'	=> ($config['enable_confirm'] && $config['confirm_refresh']) ? true : false,
 			'S_REGISTRATION'	=> true,

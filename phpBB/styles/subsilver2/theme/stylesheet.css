@@ -15,10 +15,6 @@
 	padding: 0;
 }
 
-abbr {
-	text-decoration: none;
-}
-
 html {
 	font-size: 100%;
 }
@@ -324,10 +320,6 @@ th {
 	background-image: url('./images/cellpic3.gif');
 	white-space: nowrap;
 	padding: 7px 5px;
-}
-
-th.center {
-	text-align: center;
 }
 
 td {

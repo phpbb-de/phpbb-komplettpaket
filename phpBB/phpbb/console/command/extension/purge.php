@@ -22,11 +22,11 @@ class purge extends command
 	{
 		$this
 			->setName('extension:purge')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_PURGE_EXTENSION'))
+			->setDescription('Purges the specified extension.')
 			->addArgument(
 				'extension-name',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_EXTENSION_NAME')
+				'Name of the extension'
 			)
 		;
 	}
@@ -39,13 +39,13 @@ class purge extends command
 
 		if ($this->manager->is_enabled($name))
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_EXTENSION_PURGE_FAILURE', $name) . '</error>');
+			$output->writeln("<error>Could not purge extension $name</error>");
 			return 1;
 		}
 		else
 		{
 			$this->log->add('admin', ANONYMOUS, '', 'LOG_EXT_PURGE', time(), array($name));
-			$output->writeln('<info>' . $this->user->lang('CLI_EXTENSION_PURGE_SUCCESS', $name) . '</info>');
+			$output->writeln("<info>Successfully purge extension $name</info>");
 			return 0;
 		}
 	}

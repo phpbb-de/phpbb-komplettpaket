@@ -21,20 +21,20 @@ class phpbb_functional_notification_test extends phpbb_functional_test_case
 		return array(
 			// Rows inserted by phpBB/install/schemas/schema_data.sql
 			// Also see PHPBB3-11460
-			array('notification.type.post_notification', true),
-			array('notification.type.topic_notification', true),
-			array('notification.type.post_notification.method.email', true),
-			array('notification.type.topic_notification.method.email', true),
+			array('post_notification', true),
+			array('topic_notification', true),
+			array('post_email', true),
+			array('topic_email', true),
 
 			// Default behaviour for in-board notifications:
 			// If user did not opt-out, in-board notifications are on.
-			array('notification.type.bookmark_notification', true),
-			array('notification.type.quote_notification', true),
+			array('bookmark_notification', true),
+			array('quote_notification', true),
 
 			// Default behaviour for email notifications:
 			// If user did not opt-in, email notifications are off.
-			array('notification.type.bookmark_notification.method.email', false),
-			array('notification.type.quote_notification.method.email', false),
+			array('bookmark_email', false),
+			array('quote_email', false),
 		);
 	}
 
@@ -82,6 +82,8 @@ class phpbb_functional_notification_test extends phpbb_functional_test_case
 		// Get form token
 		$link = $crawler->selectLink($this->lang('NOTIFICATIONS_MARK_ALL_READ'))->link()->getUri();
 		$crawler = self::request('GET', substr($link, strpos($link, 'ucp.')));
+		$form = $crawler->selectButton($this->lang('YES'))->form();
+		$crawler = self::submit($form);
 		$this->assertEquals(0, $crawler->filter('#notification_list_button strong')->text());
 	}
 }

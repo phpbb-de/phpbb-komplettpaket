@@ -409,9 +409,7 @@ class acp_bbcodes
 	{
 		$bbcode_match = trim($bbcode_match);
 		$bbcode_tpl = trim($bbcode_tpl);
-
-		// Allow unicode characters for URL|LOCAL_URL|RELATIVE_URL|INTTEXT tokens
-		$utf8 = preg_match('/(URL|LOCAL_URL|RELATIVE_URL|INTTEXT)/', $bbcode_match);
+		$utf8 = strpos($bbcode_match, 'INTTEXT') !== false;
 
 		$utf8_pcre_properties = phpbb_pcre_utf8_support();
 

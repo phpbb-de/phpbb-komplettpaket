@@ -83,9 +83,9 @@ class phpbb_lock_flock_test extends phpbb_test_case
 			sleep(1);
 
 			$lock = new \phpbb\lock\flock($path);
-			$start = microtime(true);
+			$start = time();
 			$ok = $lock->acquire();
-			$delta = microtime(true) - $start;
+			$delta = time() - $start;
 			$this->assertTrue($ok);
 			$this->assertTrue($lock->owns_lock());
 			$this->assertGreaterThan(0.5, $delta, 'First lock acquired too soon');
@@ -94,9 +94,9 @@ class phpbb_lock_flock_test extends phpbb_test_case
 			$this->assertFalse($lock->owns_lock());
 
 			// acquire again, this should be instantaneous
-			$start = microtime(true);
+			$start = time();
 			$ok = $lock->acquire();
-			$delta = microtime(true) - $start;
+			$delta = time() - $start;
 			$this->assertTrue($ok);
 			$this->assertTrue($lock->owns_lock());
 			$this->assertLessThan(0.1, $delta, 'Second lock not acquired instantaneously');

@@ -22,11 +22,11 @@ class disable extends command
 	{
 		$this
 			->setName('extension:disable')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_DISABLE_EXTENSION'))
+			->setDescription('Disables the specified extension.')
 			->addArgument(
 				'extension-name',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_EXTENSION_NAME')
+				'Name of the extension'
 			)
 		;
 	}
@@ -39,13 +39,13 @@ class disable extends command
 
 		if ($this->manager->is_enabled($name))
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_EXTENSION_DISABLE_FAILURE', $name) . '</error>');
+			$output->writeln("<error>Could not disable extension $name</error>");
 			return 1;
 		}
 		else
 		{
 			$this->log->add('admin', ANONYMOUS, '', 'LOG_EXT_DISABLE', time(), array($name));
-			$output->writeln('<info>' . $this->user->lang('CLI_EXTENSION_DISABLE_SUCCESS', $name) . '</info>');
+			$output->writeln("<info>Successfully disabled extension $name</info>");
 			return 0;
 		}
 	}

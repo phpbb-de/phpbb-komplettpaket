@@ -2,7 +2,6 @@
 	<form action="{S_CONFIRM_ACTION}" method="post">
 		<p>{MESSAGE_TEXT}</p>
 
-		<!-- IF not S_SHADOW_TOPICS -->
 		<!-- IF not S_SOFTDELETED and S_ALLOWED_DELETE and S_ALLOWED_SOFTDELETE -->
 			<label>
 				<strong>{L_DELETE_PERMANENTLY}{L_COLON}</strong>
@@ -15,7 +14,6 @@
 			<strong>{L_DELETE_REASON}{L_COLON}</strong><br /><span>{L_DELETE_REASON_EXPLAIN}</span><br />
 			<input type="text" name="delete_reason" value="" class="inputbox autowidth" maxlength="120" size="45" />
 		</label>
-		<!-- ENDIF -->
 
 		<fieldset class="submit-buttons">
 			<input type="button" name="confirm" value="{L_YES}" class="button1" />&nbsp;
@@ -35,7 +33,6 @@
 
 	<p>{MESSAGE_TEXT}</p>
 
-	<!-- IF not S_SHADOW_TOPICS -->
 	<fieldset class="fields1">
 		<!-- IF not S_SOFTDELETED and S_ALLOWED_DELETE and S_ALLOWED_SOFTDELETE -->
 			<dl>
@@ -54,7 +51,6 @@
 			<dd><input type="text" name="delete_reason" id="delete_reason" value="" class="inputbox autowidth" maxlength="120" size="45" /></dd>
 		</dl>
 	</fieldset>
-	<!-- ENDIF -->
 
 	<fieldset class="submit-buttons">
 		{S_HIDDEN_FIELDS}

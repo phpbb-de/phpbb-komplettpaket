@@ -92,7 +92,7 @@ class style_update_p1 extends \phpbb\db\migration\migration
 		else
 		{
 			$sql = 'SELECT s.style_id, t.template_path, t.template_id, t.bbcode_bitfield, t.template_inherits_id, t.template_inherit_path, c.theme_path, c.theme_id
-				FROM ' . STYLES_TABLE . ' s, ' . $this->table_prefix . 'styles_template t, ' . $this->table_prefix . "styles_theme c
+				FROM ' . STYLES_TABLE . ' s, ' . $this->table_prefix . 'styles_template t, ' . $this->table_prefix . "stles_theme c
 				WHERE t.template_id = s.template_id
 					AND c.theme_id = s.theme_id";
 		}
@@ -136,7 +136,7 @@ class style_update_p1 extends \phpbb\db\migration\migration
 		if (!sizeof($valid_styles))
 		{
 			// No valid styles: remove everything and add prosilver
-			$this->sql_query('DELETE FROM ' . STYLES_TABLE);
+			$this->sql_query('DELETE FROM ' . STYLES_TABLE, $errored, $error_ary);
 
 			$sql_ary = array(
 				'style_name'		=> 'prosilver',
@@ -157,13 +157,13 @@ class style_update_p1 extends \phpbb\db\migration\migration
 			$this->sql_query($sql);
 
 			$sql = 'SELECT style_id
-				FROM ' . STYLES_TABLE . "
+				FROM ' . $table . "
 				WHERE style_name = 'prosilver'";
 			$result = $this->sql_query($sql);
-			$default_style = $this->db->sql_fetchfield('style_id');
+			$default_style = $this->db->sql_fetchfield($result);
 			$this->db->sql_freeresult($result);
 
-			$this->config->set('default_style', $default_style);
+			set_config('default_style', $default_style);
 
 			$sql = 'UPDATE ' . USERS_TABLE . ' SET user_style = 0';
 			$this->sql_query($sql);

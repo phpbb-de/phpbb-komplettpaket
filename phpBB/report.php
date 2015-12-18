@@ -99,24 +99,6 @@ if ($post_id)
 	// Check required permissions
 	$acl_check_ary = array('f_list' => 'POST_NOT_EXIST', 'f_read' => 'USER_CANNOT_READ', 'f_report' => 'USER_CANNOT_REPORT');
 
-	/**
-	* This event allows you to do extra auth checks and verify if the user
-	* has the required permissions
-	*
-	* @event core.report_post_auth
-	* @var	array	forum_data		All data available from the forums table on this post's forum
-	* @var	array	report_data		All data available from the topics and the posts tables on this post (and its topic)
-	* @var	array	acl_check_ary	An array with the ACL to be tested. The evaluation is made in the same order as the array is sorted
-	*								The key is the ACL name and the value is the language key for the error message.
-	* @since 3.1.3-RC1
-	*/
-	$vars = array(
-		'forum_data',
-		'report_data',
-		'acl_check_ary',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.report_post_auth', compact($vars)));
-
 	foreach ($acl_check_ary as $acl => $error)
 	{
 		if (!$auth->acl_get($acl, $forum_id))
@@ -169,7 +151,8 @@ else
 
 if ($config['enable_post_confirm'] && !$user->data['is_registered'])
 {
-	$captcha = $phpbb_container->get('captcha.factory')->get_instance($config['captcha_plugin']);
+	include($phpbb_root_path . 'includes/captcha/captcha_factory.' . $phpEx);
+	$captcha = phpbb_captcha_factory::get_instance($config['captcha_plugin']);
 	$captcha->init(CONFIRM_REPORT);
 }
 
@@ -249,7 +232,7 @@ if ($submit && $reason_id)
 			$lang_return = $user->lang['RETURN_TOPIC'];
 			$lang_success = $user->lang['POST_REPORTED_SUCCESS'];
 
-			$phpbb_notifications->add_notifications('notification.type.report_post', array_merge($report_data, $row, $forum_data, array(
+			$phpbb_notifications->add_notifications('report_post', array_merge($report_data, $row, $forum_data, array(
 				'report_text'	=> $report_text,
 			)));
 		}
@@ -279,7 +262,7 @@ if ($submit && $reason_id)
 			$lang_return = $user->lang['RETURN_PM'];
 			$lang_success = $user->lang['PM_REPORTED_SUCCESS'];
 
-			$phpbb_notifications->add_notifications('notification.type.report_pm', array_merge($report_data, $row, array(
+			$phpbb_notifications->add_notifications('report_pm', array_merge($report_data, $row, array(
 				'report_text'	=> $report_text,
 				'from_user_id'	=> $report_data['author_id'],
 				'report_id'		=> $report_id,

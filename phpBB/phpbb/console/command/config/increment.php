@@ -26,22 +26,22 @@ class increment extends command
 	{
 		$this
 			->setName('config:increment')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_INCREMENT_CONFIG'))
+			->setDescription("Increments a configuration option's value")
 			->addArgument(
 				'key',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_OPTION_NAME')
+				"The configuration option's name"
 			)
 			->addArgument(
 				'increment',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_INCREMENT_BY')
+				'Amount to increment by'
 			)
 			->addOption(
 				'dynamic',
 				'd',
 				InputOption::VALUE_NONE,
-				$this->user->lang('CLI_CONFIG_CANNOT_CACHED')
+				'Set this option if the configuration option changes too frequently to be efficiently cached.'
 			)
 		;
 	}
@@ -65,6 +65,6 @@ class increment extends command
 
 		$this->config->increment($key, $increment, $use_cache);
 
-		$output->writeln('<info>' . $this->user->lang('CLI_CONFIG_INCREMENT_SUCCESS', $key) . '</info>');
+		$output->writeln("<info>Successfully incremented config $key</info>");
 	}
 }

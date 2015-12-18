@@ -14,10 +14,9 @@
 namespace phpbb\event;
 
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpFoundation\Response;
 
 class kernel_exception_subscriber implements EventSubscriberInterface
@@ -54,55 +53,23 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 	*/
 	public function on_kernel_exception(GetResponseForExceptionEvent $event)
 	{
+		page_header($this->user->lang('INFORMATION'));
+
 		$exception = $event->getException();
 
-		$message = $exception->getMessage();
+		$this->template->assign_vars(array(
+			'MESSAGE_TITLE'		=> $this->user->lang('INFORMATION'),
+			'MESSAGE_TEXT'		=> $exception->getMessage(),
+		));
 
-		if ($exception instanceof \phpbb\exception\exception_interface)
-		{
-			$message = call_user_func_array(array($this->user, 'lang'), array_merge(array($message), $exception->get_parameters()));
-		}
+		$this->template->set_filenames(array(
+			'body'	=> 'message_body.html',
+		));
 
-		if (!$event->getRequest()->isXmlHttpRequest())
-		{
-			page_header($this->user->lang('INFORMATION'));
+		page_footer(true, false, false);
 
-			$this->template->assign_vars(array(
-				'MESSAGE_TITLE' => $this->user->lang('INFORMATION'),
-				'MESSAGE_TEXT'  => $message,
-			));
-
-			$this->template->set_filenames(array(
-				'body' => 'message_body.html',
-			));
-
-			page_footer(true, false, false);
-
-			$response = new Response($this->template->assign_display('body'), 500);
-		}
-		else
-		{
-			$data = array();
-
-			if (!empty($message))
-			{
-				$data['message'] = $message;
-			}
-
-			if (defined('DEBUG'))
-			{
-				$data['trace'] = $exception->getTrace();
-			}
-
-			$response = new JsonResponse($data, 500);
-		}
-
-		if ($exception instanceof HttpExceptionInterface)
-		{
-			$response->setStatusCode($exception->getStatusCode());
-			$response->headers->add($exception->getHeaders());
-		}
-
+		$status_code = $exception instanceof HttpException ? $exception->getStatusCode() : 500;
+		$response = new Response($this->template->assign_display('body'), $status_code);
 		$event->setResponse($response);
 	}
 

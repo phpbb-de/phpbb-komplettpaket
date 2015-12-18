@@ -20,7 +20,7 @@ class group_request extends \phpbb\notification\type\base
 	*/
 	public function get_type()
 	{
-		return 'notification.type.group_request';
+		return 'group_request';
 	}
 
 	/**
@@ -96,7 +96,7 @@ class group_request extends \phpbb\notification\type\base
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->item_id, false, true);
+		return $this->user_loader->get_avatar($this->item_id);
 	}
 
 	/**

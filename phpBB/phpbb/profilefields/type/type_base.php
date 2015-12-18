@@ -133,7 +133,7 @@ abstract class type_base implements type_interface
 		{
 			foreach ($field_data[$key] as $lang_id => $options)
 			{
-				$field_data[$key][$lang_id] = is_array($options) ? $options : explode("\n", $options);
+				$field_data[$key][$lang_id] = explode("\n", $options);
 			}
 
 			return $current_value;
@@ -158,19 +158,7 @@ abstract class type_base implements type_interface
 		}
 		else
 		{
-			$default_value = '';
-			$lang_fields = array(
-				'l_lang_name',
-				'l_lang_explain',
-				'l_lang_default_value',
-				'l_lang_options',
-			);
-
-			if (in_array($key, $lang_fields))
-			{
-				$default_value = array(0 => '');
-			}
-			return $this->request->variable($key, $default_value, true);
+			return $this->request->variable($key, '', true);
 		}
 	}
 

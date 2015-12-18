@@ -20,16 +20,20 @@ class cron_list extends \phpbb\console\command\command
 	/** @var \phpbb\cron\manager */
 	protected $cron_manager;
 
+	/** @var \phpbb\user */
+	protected $user;
+
 	/**
 	* Constructor
 	*
-	* @param \phpbb\user			$user			User instance
 	* @param \phpbb\cron\manager	$cron_manager	Cron manager
+	* @param \phpbb\user			$user			User instance
 	*/
-	public function __construct(\phpbb\user $user, \phpbb\cron\manager $cron_manager)
+	public function __construct(\phpbb\cron\manager $cron_manager, \phpbb\user $user)
 	{
 		$this->cron_manager = $cron_manager;
-		parent::__construct($user);
+		$this->user = $user;
+		parent::__construct();
 	}
 
 	/**

@@ -18,16 +18,11 @@ abstract class type_string_common extends type_base
 	protected $validation_options = array(
 		'CHARS_ANY'			=> '.*',
 		'NUMBERS_ONLY'		=> '[0-9]+',
-		'ALPHA_ONLY'		=> '[a-zA-Z0-9]+',
-		'ALPHA_UNDERSCORE'	=> '[\w]+',
-		'ALPHA_DOTS'        => '[a-zA-Z0-9.]+',
-		'ALPHA_SPACERS'		=> '[\w\x20+\-\[\]]+',
-		'ALPHA_PUNCTUATION' => '[a-zA-Z][\w\.,\-]+',
-		'LETTER_NUM_ONLY'			=> '[\p{Lu}\p{Ll}0-9]+',
-		'LETTER_NUM_UNDERSCORE'		=> '[\p{Lu}\p{Ll}0-9_]+',
-		'LETTER_NUM_DOTS'			=> '[\p{Lu}\p{Ll}0-9.]+',
-		'LETTER_NUM_SPACERS'		=> '[\p{Lu}\p{Ll}0-9\x20_+\-\[\]]+',
-		'LETTER_NUM_PUNCTUATION'	=> '[\p{Lu}\p{Ll}][\p{Lu}\p{Ll}0-9.,\-_]+',
+		'ALPHA_ONLY'		=> '[\w]+',
+		'ALPHA_UNDERSCORE'	=> '[\w_]+',
+		'ALPHA_DOTS'        => '[\w.]+',
+		'ALPHA_SPACERS'		=> '[\w_\+\. \-\[\]]+',
+		'ALPHA_PUNCTUATION' => '[a-zA-Z][\w\.,\-_]+',
 	);
 
 	/**
@@ -84,7 +79,7 @@ abstract class type_string_common extends type_base
 		if (!empty($field_data['field_validation']) && $field_data['field_validation'] != '.*')
 		{
 			$field_validate = ($field_type != 'text') ? $field_value : bbcode_nl2br($field_value);
-			if (!preg_match('#^' . str_replace('\\\\', '\\', $field_data['field_validation']) . '$#iu', $field_validate))
+			if (!preg_match('#^' . str_replace('\\\\', '\\', $field_data['field_validation']) . '$#i', $field_validate))
 			{
 				$validation = array_search($field_data['field_validation'], $this->validation_options);
 				if ($validation)
@@ -103,7 +98,7 @@ abstract class type_string_common extends type_base
 	*/
 	public function get_profile_value($field_value, $field_data)
 	{
-		if (($field_value === null || $field_value === '') && !$field_data['field_show_novalue'])
+		if (!$field_value && !$field_data['field_show_novalue'])
 		{
 			return null;
 		}
@@ -119,7 +114,7 @@ abstract class type_string_common extends type_base
 	*/
 	public function get_profile_value_raw($field_value, $field_data)
 	{
-		if (($field_value === null || $field_value === '') && !$field_data['field_show_novalue'])
+		if (!$field_value && !$field_data['field_show_novalue'])
 		{
 			return null;
 		}
@@ -132,7 +127,12 @@ abstract class type_string_common extends type_base
 	*/
 	public function get_profile_contact_value($field_value, $field_data)
 	{
-		return $this->get_profile_value_raw($field_value, $field_data);
+		if (!$field_value && !$field_data['field_show_novalue'])
+		{
+			return null;
+		}
+
+		return $field_value;
 	}
 
 	/**

@@ -45,28 +45,28 @@ function send_avatar_to_browser($file, $browser)
 
 	if ((@file_exists($file_path) && @is_readable($file_path)) && !headers_sent())
 	{
-		header('Cache-Control: public');
+		header('Pragma: public');
 
 		$image_data = @getimagesize($file_path);
 		header('Content-Type: ' . image_type_to_mime_type($image_data[2]));
 
-		if ((strpos(strtolower($browser), 'msie') !== false) && !phpbb_is_greater_ie_version($browser, 7))
+		if ((strpos(strtolower($user->browser), 'msie') !== false) && !phpbb_is_greater_ie_version($browser, 7))
 		{
 			header('Content-Disposition: attachment; ' . header_filename($file));
 
 			if (strpos(strtolower($browser), 'msie 6.0') !== false)
 			{
-				header('Expires: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
+				header('Expires: -1');
 			}
 			else
 			{
-				header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
+				header('Expires: ' . gmdate('D, d M Y H:i:s \G\M\T', time() + 31536000));
 			}
 		}
 		else
 		{
 			header('Content-Disposition: inline; ' . header_filename($file));
-			header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
+			header('Expires: ' . gmdate('D, d M Y H:i:s \G\M\T', time() + 31536000));
 		}
 
 		$size = @filesize($file_path);
@@ -175,7 +175,7 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 	}
 
 	// Now the tricky part... let's dance
-	header('Cache-Control: public');
+	header('Pragma: public');
 
 	// Send out the Headers. Do not set Content-Disposition to inline please, it is a security measure for users using the Internet Explorer.
 	header('Content-Type: ' . $attachment['mimetype']);
@@ -197,7 +197,7 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 			header('Content-Disposition: attachment; ' . header_filename(htmlspecialchars_decode($attachment['real_filename'])));
 			if (empty($user->browser) || (strpos(strtolower($user->browser), 'msie 6.0') !== false))
 			{
-				header('Expires: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
+				header('expires: -1');
 			}
 		}
 		else
@@ -208,6 +208,11 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 				header('X-Download-Options: noopen');
 			}
 		}
+	}
+
+	if ($size)
+	{
+		header("Content-Length: $size");
 	}
 
 	// Close the db connection before sending the file etc.
@@ -231,11 +236,6 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 			// and always requires an absolute path.
 			header('X-Sendfile: ' . dirname(__FILE__) . "/../$upload_dir/{$attachment['physical_filename']}");
 			exit;
-		}
-
-		if ($size)
-		{
-			header("Content-Length: $size");
 		}
 
 		// Try to deliver in chunks
@@ -420,8 +420,8 @@ function set_modified_headers($stamp, $browser)
 		{
 			send_status_line(304, 'Not Modified');
 			// seems that we need those too ... browsers
-			header('Cache-Control: public');
-			header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
+			header('Pragma: public');
+			header('Expires: ' . gmdate('D, d M Y H:i:s \G\M\T', time() + 31536000));
 			return true;
 		}
 		else
@@ -715,6 +715,27 @@ function phpbb_download_check_pm_auth($db, $user_id, $msg_id)
 	$db->sql_freeresult($result);
 
 	return $allowed;
+}
+
+/**
+* Cleans a filename of any characters that could potentially cause a problem on
+* a user's filesystem.
+*
+* @param string $filename The filename to clean
+*
+* @return string The cleaned filename
+*/
+function phpbb_download_clean_filename($filename)
+{
+	$bad_chars = array("'", "\\", ' ', '/', ':', '*', '?', '"', '<', '>', '|');
+
+	// rawurlencode to convert any potentially 'bad' characters that we missed
+	$filename = rawurlencode(str_replace($bad_chars, '_', $filename));
+
+	// Turn the %xx entities created by rawurlencode to _
+	$filename = preg_replace("/%(\w{2})/", '_', $filename);
+
+	return $filename;
 }
 
 /**

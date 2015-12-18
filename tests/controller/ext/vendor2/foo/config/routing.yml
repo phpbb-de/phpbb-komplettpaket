@@ -1,5 +1,5 @@
 controller1:
-    path: /foo
+    pattern: /foo
     defaults: { _controller: foo.controller:handle }
 
 include_controller2:

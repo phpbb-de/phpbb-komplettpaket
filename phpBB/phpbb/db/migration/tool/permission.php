@@ -105,7 +105,6 @@ class permission implements \phpbb\db\migration\tool\tool_interface
 	* @param string $auth_option The name of the permission (auth) option
 	* @param bool $global True for checking a global permission setting,
 	* 	False for a local permission setting
-	* @param int|false $copy_from If set, contains the id of the permission from which to copy the new one.
 	* @return null
 	*/
 	public function add($auth_option, $global = true, $copy_from = false)
@@ -244,9 +243,7 @@ class permission implements \phpbb\db\migration\tool\tool_interface
 	* Add a new permission role
 	*
 	* @param string $role_name The new role name
-	* @param string $role_type The type (u_, m_, a_)
-	* @param string $role_description Description of the new role
-	*
+	* @param sting $role_type The type (u_, m_, a_)
 	* @return null
 	*/
 	public function role_add($role_name, $role_type, $role_description = '')
@@ -425,27 +422,13 @@ class permission implements \phpbb\db\migration\tool\tool_interface
 				$role_id = (int) $this->db->sql_fetchfield('auth_role_id');
 				if ($role_id)
 				{
-					$sql = 'SELECT role_name, role_type
+					$sql = 'SELECT role_name
 						FROM ' . ACL_ROLES_TABLE . '
 						WHERE role_id = ' . $role_id;
 					$this->db->sql_query($sql);
-					$role_data = $this->db->sql_fetchrow();
-					$role_name = $role_data['role_name'];
-					$role_type = $role_data['role_type'];
+					$role_name = $this->db->sql_fetchfield('role_name');
 
-					// Filter new auth options to match the role type: a_ | f_ | m_ | u_
-					// Set new auth options to the role only if options matching the role type were found
-					$auth_option = array_filter($auth_option,
-						function ($option) use ($role_type)
-						{
-							return strpos($option, $role_type) === 0;
-						}
-					);
-
-					if (sizeof($auth_option))
-					{
-						return $this->permission_set($role_name, $auth_option, 'role', $has_permission);
-					}
+					return $this->permission_set($role_name, $auth_option, 'role', $has_permission);
 				}
 
 				$sql = 'SELECT auth_option_id, auth_setting
@@ -551,8 +534,7 @@ class permission implements \phpbb\db\migration\tool\tool_interface
 				}
 
 				$sql = 'DELETE FROM ' . ACL_ROLES_DATA_TABLE . '
-					WHERE ' . $this->db->sql_in_set('auth_option_id', $to_remove) . '
-						AND role_id = ' . (int) $role_id;
+					WHERE ' . $this->db->sql_in_set('auth_option_id', $to_remove);
 				$this->db->sql_query($sql);
 			break;
 

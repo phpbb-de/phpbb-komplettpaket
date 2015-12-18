@@ -13,6 +13,7 @@
 
 namespace phpbb\template\twig\tokenparser;
 
+
 class includejs extends \Twig_TokenParser
 {
 	/**

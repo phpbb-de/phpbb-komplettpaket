@@ -1,6 +1,6 @@
 core_controller:
-    path: /test
+    pattern: /test
     defaults: { _controller: core_foo.controller:bar, page: 1}
 core_page_controller:
-    path: /test/page/{page}
+    pattern: /test/page/{page}
     defaults: { _controller: core_foo.controller:bar}

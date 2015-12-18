@@ -309,7 +309,7 @@ if (!defined(\'IN_PHPBB\'))
 
 // Set update info with file structure to update
 $update_info = array(
-	\'version\'	=> array(\'from\' => \'' . str_replace(array('_to_', '-deutsch'), '', $package->old_packages[$_package_name]) . '\', \'to\' => \'' . str_replace('-deutsch', '', $package->get('new_version_number')) . '\'),
+	\'version\'	=> array(\'from\' => \'' . str_replace('_to_', '', $package->old_packages[$_package_name]) . '\', \'to\' => \'' . $package->get('new_version_number') . '\'),
 ';
 
 		if (sizeof($file_contents['all']))
@@ -394,7 +394,6 @@ if (sizeof($package->old_packages))
 		$package->run_command('mkdir ' . $package->get('files_directory') . '/release');
 		$package->run_command('cp -Rp ' . $package->get('dest_dir') . '/docs ' . $package->get('files_directory') . '/release');
 		$package->run_command('cp -Rp ' . $package->get('dest_dir') . '/install ' . $package->get('files_directory') . '/release');
-		$package->run_command('cp -Rp ' . $package->get('dest_dir') . '/vendor ' . $package->get('files_directory') . '/release');
 
 		$package->run_command('rm -v ' . $package->get('files_directory') . '/release/install/install_install.php');
 		$package->run_command('rm -v ' . $package->get('files_directory') . '/release/install/install_update.php');

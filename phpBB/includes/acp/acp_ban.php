@@ -25,13 +25,14 @@ class acp_ban
 
 	function main($id, $mode)
 	{
-		global $user, $template, $request, $phpbb_dispatcher;
-		global $phpbb_root_path, $phpEx;
+		global $config, $db, $user, $auth, $template, $cache;
+		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $table_prefix;
 
 		include($phpbb_root_path . 'includes/functions_user.' . $phpEx);
 
-		$bansubmit	= $request->is_set_post('bansubmit');
-		$unbansubmit = $request->is_set_post('unbansubmit');
+		$bansubmit	= (isset($_POST['bansubmit'])) ? true : false;
+		$unbansubmit = (isset($_POST['unbansubmit'])) ? true : false;
+		$current_time = time();
 
 		$user->add_lang(array('acp/ban', 'acp/users'));
 		$this->tpl_name = 'acp_ban';
@@ -47,79 +48,23 @@ class acp_ban
 		if ($bansubmit)
 		{
 			// Grab the list of entries
-			$ban				= $request->variable('ban', '', true);
-			$ban_length			= $request->variable('banlength', 0);
-			$ban_length_other	= $request->variable('banlengthother', '');
-			$ban_exclude		= $request->variable('banexclude', 0);
-			$ban_reason			= $request->variable('banreason', '', true);
-			$ban_give_reason	= $request->variable('bangivereason', '', true);
+			$ban				= utf8_normalize_nfc(request_var('ban', '', true));
+			$ban_len			= request_var('banlength', 0);
+			$ban_len_other		= request_var('banlengthother', '');
+			$ban_exclude		= request_var('banexclude', 0);
+			$ban_reason			= utf8_normalize_nfc(request_var('banreason', '', true));
+			$ban_give_reason	= utf8_normalize_nfc(request_var('bangivereason', '', true));
 
 			if ($ban)
 			{
-				$abort_ban = false;
-				/**
-				* Use this event to modify the ban details before the ban is performed
-				*
-				* @event core.acp_ban_before
-				* @var	string	mode				One of the following: user, ip, email
-				* @var	string	ban					Either string or array with usernames, ips or email addresses
-				* @var	int		ban_length			Ban length in minutes
-				* @var	string	ban_length_other	Ban length as a date (YYYY-MM-DD)
-				* @var	bool	ban_exclude			Are we banning or excluding from another ban
-				* @var	string	ban_reason			Ban reason displayed to moderators
-				* @var	string	ban_give_reason		Ban reason displayed to the banned user
-				* @var	mixed	abort_ban			Either false, or an error message that is displayed to the user.
-				*									If a string is given the bans are not issued.
-				* @since 3.1.0-RC5
-				*/
-				$vars = array(
-					'mode',
-					'ban',
-					'ban_length',
-					'ban_length_other',
-					'ban_exclude',
-					'ban_reason',
-					'ban_give_reason',
-					'abort_ban',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.acp_ban_before', compact($vars)));
-
-				if ($abort_ban)
-				{
-					trigger_error($abort_ban . adm_back_link($this->u_action));
-				}
-				user_ban($mode, $ban, $ban_length, $ban_length_other, $ban_exclude, $ban_reason, $ban_give_reason);
-
-				/**
-				* Use this event to perform actions after the ban has been performed
-				*
-				* @event core.acp_ban_after
-				* @var	string	mode				One of the following: user, ip, email
-				* @var	string	ban					Either string or array with usernames, ips or email addresses
-				* @var	int		ban_length			Ban length in minutes
-				* @var	string	ban_length_other	Ban length as a date (YYYY-MM-DD)
-				* @var	bool	ban_exclude			Are we banning or excluding from another ban
-				* @var	string	ban_reason			Ban reason displayed to moderators
-				* @var	string	ban_give_reason		Ban reason displayed to the banned user
-				* @since 3.1.0-RC5
-				*/
-				$vars = array(
-					'mode',
-					'ban',
-					'ban_length',
-					'ban_length_other',
-					'ban_exclude',
-					'ban_reason',
-					'ban_give_reason',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.acp_ban_after', compact($vars)));
+				user_ban($mode, $ban, $ban_len, $ban_len_other, $ban_exclude, $ban_reason, $ban_give_reason);
 
 				trigger_error($user->lang['BAN_UPDATE_SUCCESSFUL'] . adm_back_link($this->u_action));
 			}
 		}
 		else if ($unbansubmit)
 		{
-			$ban = $request->variable('unban', array(''));
+			$ban = request_var('unban', array(''));
 
 			if ($ban)
 			{
@@ -231,6 +176,8 @@ class acp_ban
 		$result = $db->sql_query($sql);
 
 		$banned_options = $excluded_options = array();
+		$ban_length = $ban_reasons = $ban_give_reasons = array();
+
 		while ($row = $db->sql_fetchrow($result))
 		{
 			$option = '<option value="' . $row['ban_id'] . '">' . $row[$field] . '</option>';
@@ -249,30 +196,59 @@ class acp_ban
 			if ($time_length == 0)
 			{
 				// Banned permanently
-				$ban_length = $user->lang['PERMANENT'];
+				$ban_length[$row['ban_id']] = $user->lang['PERMANENT'];
 			}
 			else if (isset($ban_end_text[$time_length]))
 			{
 				// Banned for a given duration
-				$ban_length = $user->lang('BANNED_UNTIL_DURATION', $ban_end_text[$time_length], $user->format_date($row['ban_end'], false, true));
+				$ban_length[$row['ban_id']] = sprintf($user->lang['BANNED_UNTIL_DURATION'], $ban_end_text[$time_length], $user->format_date($row['ban_end'], false, true));
 			}
 			else
 			{
 				// Banned until given date
-				$ban_length = $user->lang('BANNED_UNTIL_DATE', $user->format_date($row['ban_end'], false, true));
+				$ban_length[$row['ban_id']] = sprintf($user->lang['BANNED_UNTIL_DATE'], $user->format_date($row['ban_end'], false, true));
 			}
 
-			$template->assign_block_vars('bans', array(
-				'BAN_ID'		=> (int) $row['ban_id'],
-				'LENGTH'		=> $ban_length,
-				'A_LENGTH'		=> addslashes($ban_length),
-				'REASON'		=> $row['ban_reason'],
-				'A_REASON'		=> addslashes($row['ban_reason']),
-				'GIVE_REASON'	=> $row['ban_give_reason'],
-				'A_GIVE_REASON'	=> addslashes($row['ban_give_reason']),
-			));
+			$ban_reasons[$row['ban_id']] = $row['ban_reason'];
+			$ban_give_reasons[$row['ban_id']] = $row['ban_give_reason'];
 		}
 		$db->sql_freeresult($result);
+
+		if (sizeof($ban_length))
+		{
+			foreach ($ban_length as $ban_id => $length)
+			{
+				$template->assign_block_vars('ban_length', array(
+					'BAN_ID'	=> (int) $ban_id,
+					'LENGTH'	=> $length,
+					'A_LENGTH'	=> addslashes($length),
+				));
+			}
+		}
+
+		if (sizeof($ban_reasons))
+		{
+			foreach ($ban_reasons as $ban_id => $reason)
+			{
+				$template->assign_block_vars('ban_reason', array(
+					'BAN_ID'	=> $ban_id,
+					'REASON'	=> $reason,
+					'A_REASON'	=> addslashes($reason),
+				));
+			}
+		}
+
+		if (sizeof($ban_give_reasons))
+		{
+			foreach ($ban_give_reasons as $ban_id => $reason)
+			{
+				$template->assign_block_vars('ban_give_reason', array(
+					'BAN_ID'	=> $ban_id,
+					'REASON'	=> $reason,
+					'A_REASON'	=> addslashes($reason),
+				));
+			}
+		}
 
 		$options = '';
 		if ($excluded_options)

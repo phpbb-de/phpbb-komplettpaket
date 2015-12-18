@@ -69,13 +69,31 @@ function deregister_globals()
 	{
 		if (isset($not_unset[$varname]))
 		{
-			// Hacking attempt. No point in continuing.
-			if (isset($_COOKIE[$varname]))
+			// Hacking attempt. No point in continuing unless it's a COOKIE (so a cookie called GLOBALS doesn't lock users out completely)
+			if ($varname !== 'GLOBALS' || isset($_GET['GLOBALS']) || isset($_POST['GLOBALS']) || isset($_SERVER['GLOBALS']) || isset($_SESSION['GLOBALS']) || isset($_ENV['GLOBALS']) || isset($_FILES['GLOBALS']))
 			{
-				echo "Clear your cookies. ";
+				exit;
 			}
-			echo "Malicious variable name detected. Contact the administrator and ask them to disable register_globals.";
-			exit;
+			else
+			{
+				$cookie = &$_COOKIE;
+				while (isset($cookie['GLOBALS']))
+				{
+					if (!is_array($cookie['GLOBALS']))
+					{
+						break;
+					}
+
+					foreach ($cookie['GLOBALS'] as $registered_var => $value)
+					{
+						if (!isset($not_unset[$registered_var]))
+						{
+							unset($GLOBALS[$registered_var]);
+						}
+					}
+					$cookie = &$cookie['GLOBALS'];
+				}
+			}
 		}
 
 		unset($GLOBALS[$varname]);
@@ -94,11 +112,7 @@ if (version_compare(PHP_VERSION, '5.4.0-dev', '>='))
 }
 else
 {
-	if (get_magic_quotes_runtime())
-	{
-		// Deactivate
-		@set_magic_quotes_runtime(0);
-	}
+	@set_magic_quotes_runtime(0);
 
 	// Be paranoid with passed vars
 	if (@ini_get('register_globals') == '1' || strtolower(@ini_get('register_globals')) == 'on' || !function_exists('ini_get'))

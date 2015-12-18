@@ -77,30 +77,6 @@ function mcp_forum_view($id, $mode, $action, $forum_info)
 		break;
 	}
 
-	/**
-	* Get some data in order to execute other actions.
-	*
-	* @event core.mcp_forum_view_before
-	* @var	string	action				The action
-	* @var	array	forum_info			Array with forum infos
-	* @var	int		start				Start value
-	* @var	array	topic_id_list		Array of topics ids
-	* @var	array	post_id_list		Array of posts ids
-	* @var	array	source_topic_ids	Array of source topics ids
-	* @var	int		to_topic_id			Array of destination topics ids
-	* @since 3.1.6-RC1
-	*/
-	$vars = array(
-		'action',
-		'forum_info',
-		'start',
-		'topic_id_list',
-		'post_id_list',
-		'source_topic_ids',
-		'to_topic_id',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.mcp_forum_view_before', compact($vars)));
-
 	$pagination = $phpbb_container->get('pagination');
 
 	$selected_ids = '';
@@ -189,22 +165,6 @@ function mcp_forum_view($id, $mode, $action, $forum_info)
 			AND ' . $phpbb_content_visibility->get_visibility_sql('topic', $forum_id, 't.') . "
 			$limit_time_sql
 		ORDER BY t.topic_type DESC, $sort_order_sql";
-
-	/**
-	* Modify SQL query before MCP forum view topic list is queried
-	*
-	* @event core.mcp_view_forum_modify_sql
-	* @var	string	sql			SQL query for forum view topic list
-	* @var	int	forum_id	ID of the forum
-	* @var	string  limit_time_sql		SQL query part for limit time
-	* @var	string  sort_order_sql		SQL query part for sort order
-	* @var	int topics_per_page			Number of topics per page
-	* @var	int start			Start value
-	* @since 3.1.2-RC1
-	*/
-	$vars = array('sql', 'forum_id', 'limit_time_sql', 'sort_order_sql', 'topics_per_page', 'start');
-	extract($phpbb_dispatcher->trigger_event('core.mcp_view_forum_modify_sql', compact($vars)));
-
 	$result = $db->sql_query_limit($sql, $topics_per_page, $start);
 
 	$topic_list = $topic_tracking_info = array();

@@ -27,7 +27,7 @@ class bookmark extends \phpbb\notification\type\post
 	*/
 	public function get_type()
 	{
-		return 'notification.type.bookmark';
+		return 'bookmark';
 	}
 
 	/**
@@ -59,8 +59,7 @@ class bookmark extends \phpbb\notification\type\post
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $post Data from submit_post
-	* @param array $options Options for finding users for notification
+	* @param array $post Data from
 	*
 	* @return array
 	*/
@@ -83,12 +82,20 @@ class bookmark extends \phpbb\notification\type\post
 		}
 		$this->db->sql_freeresult($result);
 
-		$notify_users = $this->get_authorised_recipients($users, $post['forum_id'], $options, true);
-
-		if (empty($notify_users))
+		if (empty($users))
 		{
 			return array();
 		}
+		sort($users);
+
+		$auth_read = $this->auth->acl_get_list($users, 'f_read', $post['forum_id']);
+
+		if (empty($auth_read))
+		{
+			return array();
+		}
+
+		$notify_users = $this->check_user_notification_options($auth_read[$post['forum_id']]['f_read'], $options);
 
 		// Try to find the users who already have been notified about replies and have not read the topic since and just update their notifications
 		$update_notifications = array();

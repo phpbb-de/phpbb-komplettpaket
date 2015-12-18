@@ -27,7 +27,7 @@ class report_pm_closed extends \phpbb\notification\type\pm
 	*/
 	public function get_type()
 	{
-		return 'notification.type.report_pm_closed';
+		return 'report_pm_closed';
 	}
 
 	/**
@@ -52,8 +52,7 @@ class report_pm_closed extends \phpbb\notification\type\pm
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $pm Data from submit_pm
-	* @param array $options Options for finding users for notification
+	* @param array $pm Data from
 	*
 	* @return array
 	*/
@@ -130,7 +129,7 @@ class report_pm_closed extends \phpbb\notification\type\pm
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->get_data('closer_id'), false, true);
+		return $this->user_loader->get_avatar($this->get_data('closer_id'));
 	}
 
 	/**

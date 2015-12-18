@@ -25,19 +25,23 @@ class run extends \phpbb\console\command\command
 	/** @var \phpbb\lock\db */
 	protected $lock_db;
 
+	/** @var \phpbb\user */
+	protected $user;
+
 	/**
 	* Construct method
 	*
-	* @param \phpbb\user $user The user object (used to get language information)
 	* @param \phpbb\cron\manager $cron_manager The cron manager containing
 	*		the cron tasks to be executed.
 	* @param \phpbb\lock\db $lock_db The lock for accessing database.
+	* @param \phpbb\user $user The user object (used to get language information)
 	*/
-	public function __construct(\phpbb\user $user, \phpbb\cron\manager $cron_manager, \phpbb\lock\db $lock_db)
+	public function __construct(\phpbb\cron\manager $cron_manager, \phpbb\lock\db $lock_db, \phpbb\user $user)
 	{
 		$this->cron_manager = $cron_manager;
 		$this->lock_db = $lock_db;
-		parent::__construct($user);
+		$this->user = $user;
+		parent::__construct();
 	}
 
 	/**

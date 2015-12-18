@@ -13,6 +13,10 @@
 
 $update_start_time = time();
 
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+
 /**
 * @ignore
 */
@@ -173,19 +177,31 @@ define('IN_DB_UPDATE', true);
 
 // End startup code
 
+// Make sure migrations have been installed.
+$db_tools = $phpbb_container->get('dbal.tools');
+if (!$db_tools->sql_table_exists($table_prefix . 'migrations'))
+{
+	$db_tools->sql_create_table($table_prefix . 'migrations', array(
+		'COLUMNS'		=> array(
+			'migration_name'			=> array('VCHAR', ''),
+			'migration_depends_on'		=> array('TEXT', ''),
+			'migration_schema_done'		=> array('BOOL', 0),
+			'migration_data_done'		=> array('BOOL', 0),
+			'migration_data_state'		=> array('TEXT', ''),
+			'migration_start_time'		=> array('TIMESTAMP', 0),
+			'migration_end_time'		=> array('TIMESTAMP', 0),
+		),
+		'PRIMARY_KEY'	=> 'migration_name',
+	));
+}
+
 $migrator = $phpbb_container->get('migrator');
-$migrator->set_output_handler(new \phpbb\db\log_wrapper_migrator_output_handler($user, new \phpbb\db\html_migrator_output_handler($user), $phpbb_root_path . 'store/migrations_' . time() . '.log'));
-
-$migrator->create_migrations_table();
-
 $phpbb_extension_manager = $phpbb_container->get('ext.manager');
+$finder = $phpbb_extension_manager->get_finder();
 
-$migrations = $phpbb_extension_manager
-	->get_finder()
+$migrations = $finder
 	->core_path('phpbb/db/migration/data/')
-	->extension_directory('/migrations')
 	->get_classes();
-
 $migrator->set_migrations($migrations);
 
 // What is a safe limit of execution time? Half the max execution time should be safe.
@@ -201,6 +217,8 @@ $safe_time_limit = min(15, ($phpbb_ini->get_int('max_execution_time') / 2));
 
 while (!$migrator->finished())
 {
+	$migration_start_time = microtime(true);
+
 	try
 	{
 		$migrator->update();
@@ -218,6 +236,28 @@ while (!$migrator->finished())
 		),
 		$migrator->last_run_migration['state']
 	);
+
+	if (isset($migrator->last_run_migration['effectively_installed']) && $migrator->last_run_migration['effectively_installed'])
+	{
+		echo $user->lang('MIGRATION_EFFECTIVELY_INSTALLED', $migrator->last_run_migration['name']);
+	}
+	else
+	{
+		if ($migrator->last_run_migration['task'] == 'process_data_step' && $state['migration_data_done'])
+		{
+			echo $user->lang('MIGRATION_DATA_DONE', $migrator->last_run_migration['name'], (microtime(true) - $migration_start_time));
+		}
+		else if ($migrator->last_run_migration['task'] == 'process_data_step')
+		{
+			echo $user->lang('MIGRATION_DATA_IN_PROGRESS', $migrator->last_run_migration['name'], (microtime(true) - $migration_start_time));
+		}
+		else if ($state['migration_schema_done'])
+		{
+			echo $user->lang('MIGRATION_SCHEMA_DONE', $migrator->last_run_migration['name'], (microtime(true) - $migration_start_time));
+		}
+	}
+
+	echo "<br />\n";
 
 	// Are we approaching the time limit? If so we want to pause the update and continue after refreshing
 	if ((time() - $update_start_time) >= $safe_time_limit)

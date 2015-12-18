@@ -13,6 +13,7 @@
 
 namespace phpbb\template\twig\tokenparser;
 
+
 class event extends \Twig_TokenParser
 {
 	/**

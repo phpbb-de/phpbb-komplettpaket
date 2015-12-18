@@ -26,7 +26,7 @@ class report_post extends \phpbb\notification\type\post_in_queue
 	*/
 	public function get_type()
 	{
-		return 'notification.type.report_post';
+		return 'report_post';
 	}
 
 	/**
@@ -67,7 +67,7 @@ class report_post extends \phpbb\notification\type\post_in_queue
 	* 					Array of data (including keys 'id' and 'lang')
 	*/
 	public static $notification_option = array(
-		'id'	=> 'notification.type.report',
+		'id'	=> 'report',
 		'lang'	=> 'NOTIFICATION_TYPE_REPORT',
 		'group'	=> 'NOTIFICATION_GROUP_MODERATION',
 	);
@@ -76,7 +76,6 @@ class report_post extends \phpbb\notification\type\post_in_queue
 	* Find the users who want to receive notifications
 	*
 	* @param array $post Data from the post
-	* @param array $options Options for finding users for notification
 	*
 	* @return array
 	*/
@@ -196,7 +195,7 @@ class report_post extends \phpbb\notification\type\post_in_queue
 	*/
 	public function get_avatar()
 	{
-		return $this->user_loader->get_avatar($this->get_data('reporter_id'), false, true);
+		return $this->user_loader->get_avatar($this->get_data('reporter_id'));
 	}
 
 	/**

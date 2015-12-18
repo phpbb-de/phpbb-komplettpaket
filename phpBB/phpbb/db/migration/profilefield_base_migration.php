@@ -13,7 +13,7 @@
 
 namespace phpbb\db\migration;
 
-abstract class profilefield_base_migration extends container_aware_migration
+abstract class profilefield_base_migration extends \phpbb\db\migration\migration
 {
 	protected $profilefield_name;
 
@@ -237,7 +237,8 @@ abstract class profilefield_base_migration extends container_aware_migration
 
 		if ($profile_row === null)
 		{
-			$manager = $this->container->get('profilefields.manager');
+			global $phpbb_container;
+			$manager = $phpbb_container->get('profilefields.manager');
 			$profile_row = $manager->build_insert_sql_array(array());
 		}
 

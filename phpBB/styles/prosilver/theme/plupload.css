@@ -58,15 +58,15 @@
 }
 
 .file-status.file-working {
-	background: url('./images/plupload/throbber.gif');
+	background: url('../../../assets/plupload/img/throbber.gif');
 }
 
 .file-status.file-uploaded {
-	background: url('./images/plupload/done.gif');
+	background: url('../../../assets/plupload/img/done.gif');
 }
 
 .file-status.file-error {
-	background: url('./images/plupload/error.gif');
+	background: url('../../../assets/plupload/img/error.gif');
 }
 
 .file-status {

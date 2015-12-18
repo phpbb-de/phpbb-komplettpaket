@@ -351,15 +351,6 @@ class mssql extends \phpbb\db\driver\driver
 	}
 
 	/**
-	* Build NOT LIKE expression
-	* @access private
-	*/
-	function _sql_not_like_expression($expression)
-	{
-		return $expression . " ESCAPE '\\'";
-	}
-
-	/**
 	* return sql error array
 	* @access private
 	*/

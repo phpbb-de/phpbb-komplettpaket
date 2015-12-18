@@ -11,12 +11,12 @@
 *
 */
 
-require_once dirname(__FILE__) . '/common_groups_test_case.php';
+require_once dirname(__FILE__) . '/common_groups_test.php';
 
 /**
 * @group functional
 */
-class phpbb_functional_ucp_groups_test extends phpbb_functional_common_groups_test_case
+class phpbb_functional_ucp_groups_test extends phpbb_functional_common_groups_test
 {
 	protected $db;
 

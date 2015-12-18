@@ -37,7 +37,6 @@ class mcp_queue
 	{
 		global $auth, $db, $user, $template, $cache, $request;
 		global $config, $phpbb_root_path, $phpEx, $action, $phpbb_container;
-		global $phpbb_dispatcher;
 
 		include_once($phpbb_root_path . 'includes/functions_posting.' . $phpEx);
 
@@ -165,7 +164,7 @@ class mcp_queue
 					{
 						$post_id = (int) $topic_info[$topic_id]['topic_first_post_id'];
 
-						$phpbb_notifications->mark_notifications_read('notification.type.topic_in_queue', $topic_id, $user->data['user_id']);
+						$phpbb_notifications->mark_notifications_read('topic_in_queue', $topic_id, $user->data['user_id']);
 					}
 					else
 					{
@@ -173,7 +172,7 @@ class mcp_queue
 					}
 				}
 
-				$phpbb_notifications->mark_notifications_read('notification.type.post_in_queue', $post_id, $user->data['user_id']);
+				$phpbb_notifications->mark_notifications_read('post_in_queue', $post_id, $user->data['user_id']);
 
 				$post_info = phpbb_get_post_data(array($post_id), 'm_approve', true);
 
@@ -404,7 +403,7 @@ class mcp_queue
 				$forum_options = '<option value="0"' . (($forum_id == 0) ? ' selected="selected"' : '') . '>' . $user->lang['ALL_FORUMS'] . '</option>';
 				foreach ($forum_list_approve as $row)
 				{
-					$forum_options .= '<option value="' . $row['forum_id'] . '"' . (($forum_id == $row['forum_id']) ? ' selected="selected"' : '') . '>' . str_repeat('&nbsp; &nbsp;', $row['padding']) . truncate_string($row['forum_name'], 30, 255, false, $user->lang['ELLIPSIS']) . '</option>';
+					$forum_options .= '<option value="' . $row['forum_id'] . '"' . (($forum_id == $row['forum_id']) ? ' selected="selected"' : '') . '>' . str_repeat('&nbsp; &nbsp;', $row['padding']) . $row['forum_name'] . '</option>';
 				}
 
 				$sort_days = $total = 0;
@@ -430,29 +429,6 @@ class mcp_queue
 								OR t.topic_delete_user = 0)
 							$limit_time_sql
 						ORDER BY $sort_order_sql";
-
-					/**
-					* Alter sql query to get posts in queue to be accepted
-					*
-					* @event core.mcp_queue_get_posts_query_before
-					* @var	string	sql						Associative array with the query to be executed
-					* @var	array	forum_list				List of forums that contain the posts
-					* @var	int		visibility_const		Integer with one of the possible ITEM_* constant values
-					* @var	int		topic_id				If topic_id not equal to 0, the topic id to filter the posts to display
-					* @var	string	limit_time_sql			String with the SQL code to limit the time interval of the post (Note: May be empty string)
-					* @var	string	sort_order_sql			String with the ORDER BY SQL code used in this query
-					* @since 3.1.0-RC3
-					*/
-					$vars = array(
-						'sql',
-						'forum_list',
-						'visibility_const',
-						'topic_id',
-						'limit_time_sql',
-						'sort_order_sql',
-					);
-					extract($phpbb_dispatcher->trigger_event('core.mcp_queue_get_posts_query_before', compact($vars)));
-
 					$result = $db->sql_query_limit($sql, $config['topics_per_page'], $start);
 
 					$i = 0;
@@ -502,29 +478,6 @@ class mcp_queue
 							AND topic_delete_user <> 0
 							$limit_time_sql
 						ORDER BY $sort_order_sql";
-
-					/**
-					* Alter sql query to get information on all topics in the list of forums provided.
-					*
-					* @event core.mcp_queue_get_posts_for_topics_query_before
-					* @var	string	sql						String with the query to be executed
-					* @var	array	forum_list				List of forums that contain the posts
-					* @var	int		visibility_const		Integer with one of the possible ITEM_* constant values
-					* @var	int		topic_id				topic_id in the page request
-					* @var	string	limit_time_sql			String with the SQL code to limit the time interval of the post (Note: May be empty string)
-					* @var	string	sort_order_sql			String with the ORDER BY SQL code used in this query
-					* @since 3.1.0-RC3
-					*/
-					$vars = array(
-						'sql',
-						'forum_list',
-						'visibility_const',
-						'topic_id',
-						'limit_time_sql',
-						'sort_order_sql',
-					);
-					extract($phpbb_dispatcher->trigger_event('core.mcp_queue_get_posts_for_topics_query_before', compact($vars)));
-
 					$result = $db->sql_query_limit($sql, $config['topics_per_page'], $start);
 
 					$rowset = array();
@@ -616,7 +569,7 @@ class mcp_queue
 	*/
 	static public function approve_posts($action, $post_id_list, $id, $mode)
 	{
-		global $db, $template, $user, $config, $request, $phpbb_container, $phpbb_dispatcher;
+		global $db, $template, $user, $config, $request, $phpbb_container;
 		global $phpEx, $phpbb_root_path;
 
 		if (!phpbb_check_ids($post_id_list, POSTS_TABLE, 'post_id', array('m_approve')))
@@ -701,11 +654,11 @@ class mcp_queue
 					// A single topic approval may also happen here, so handle deleting the respective notification.
 					if (!$post_data['topic_posts_approved'])
 					{
-						$phpbb_notifications->delete_notifications('notification.type.topic_in_queue', $post_data['topic_id']);
+						$phpbb_notifications->delete_notifications('topic_in_queue', $post_data['topic_id']);
 
 						if ($post_data['post_visibility'] == ITEM_UNAPPROVED)
 						{
-							$phpbb_notifications->add_notifications(array('notification.type.topic'), $post_data);
+							$phpbb_notifications->add_notifications(array('topic'), $post_data);
 						}
 						if ($post_data['post_visibility'] != ITEM_APPROVED)
 						{
@@ -721,18 +674,18 @@ class mcp_queue
 						if ($post_data['post_visibility'] == ITEM_UNAPPROVED)
 						{
 							$phpbb_notifications->add_notifications(array(
-								'notification.type.bookmark',
-								'notification.type.post',
+								'bookmark',
+								'post',
 							), $post_data);
 						}
 					}
-					$phpbb_notifications->add_notifications(array('notification.type.quote'), $post_data);
-					$phpbb_notifications->delete_notifications('notification.type.post_in_queue', $post_id);
+					$phpbb_notifications->add_notifications(array('quote'), $post_data);
+					$phpbb_notifications->delete_notifications('post_in_queue', $post_id);
 
 					$phpbb_notifications->mark_notifications_read(array(
-						'notification.type.quote',
-						'notification.type.bookmark',
-						'notification.type.post',
+						'quote',
+						'bookmark',
+						'post',
 					), $post_data['post_id'], $user->data['user_id']);
 
 					// Notify Poster?
@@ -745,11 +698,11 @@ class mcp_queue
 
 						if (!$post_data['topic_posts_approved'])
 						{
-							$phpbb_notifications->add_notifications('notification.type.approve_topic', $post_data);
+							$phpbb_notifications->add_notifications('approve_post', $post_data);
 						}
 						else
 						{
-							$phpbb_notifications->add_notifications('notification.type.approve_post', $post_data);
+							$phpbb_notifications->add_notifications('approve_topic', $post_data);
 						}
 					}
 				}
@@ -763,30 +716,6 @@ class mcp_queue
 			{
 				$success_msg = (sizeof($post_info) == 1) ? 'POST_' . strtoupper($action) . 'D_SUCCESS' : 'POSTS_' . strtoupper($action) . 'D_SUCCESS';
 			}
-
-			/**
-			 * Perform additional actions during post(s) approval
-			 *
-			 * @event core.approve_posts_after
-			 * @var	string	action				Variable containing the action we perform on the posts ('approve' or 'restore')
-			 * @var	array	post_info			Array containing info for all posts being approved
-			 * @var	array	topic_info			Array containing info for all parent topics of the posts
-			 * @var	int		num_topics			Variable containing number of topics
-			 * @var bool	notify_poster		Variable telling if the post should be notified or not
-			 * @var	string	success_msg			Variable containing the language key for the success message
-			 * @var string	redirect			Variable containing the redirect url
-			 * @since 3.1.4-RC1
-			 */
-			$vars = array(
-				'action',
-				'post_info',
-				'topic_info',
-				'num_topics',
-				'notify_poster',
-				'success_msg',
-				'redirect',
-			);
-			extract($phpbb_dispatcher->trigger_event('core.approve_posts_after', compact($vars)));
 
 			meta_refresh(3, $redirect);
 			$message = $user->lang[$success_msg];
@@ -864,7 +793,7 @@ class mcp_queue
 	static public function approve_topics($action, $topic_id_list, $id, $mode)
 	{
 		global $db, $template, $user, $config;
-		global $phpEx, $phpbb_root_path, $request, $phpbb_container, $phpbb_dispatcher;
+		global $phpEx, $phpbb_root_path, $request, $phpbb_container;
 
 		if (!phpbb_check_ids($topic_id_list, TOPICS_TABLE, 'topic_id', array('m_approve')))
 		{
@@ -945,7 +874,7 @@ class mcp_queue
 						'post_username'	=> $topic_data['topic_first_poster_name'],
 					));
 
-					$phpbb_notifications->delete_notifications('notification.type.topic_in_queue', $topic_id);
+					$phpbb_notifications->delete_notifications('topic_in_queue', $topic_id);
 
 					// Only add notifications, if we are not reapproving post
 					// When the topic was already approved, but was edited and
@@ -954,42 +883,20 @@ class mcp_queue
 					if ($topic_data['topic_visibility'] == ITEM_UNAPPROVED)
 					{
 						$phpbb_notifications->add_notifications(array(
-							'notification.type.quote',
-							'notification.type.topic',
+							'quote',
+							'topic',
 						), $topic_data);
 					}
 
-					$phpbb_notifications->mark_notifications_read('notification.type.quote', $topic_data['post_id'], $user->data['user_id']);
-					$phpbb_notifications->mark_notifications_read('notification.type.topic', $topic_id, $user->data['user_id']);
+					$phpbb_notifications->mark_notifications_read('quote', $topic_data['post_id'], $user->data['user_id']);
+					$phpbb_notifications->mark_notifications_read('topic', $topic_id, $user->data['user_id']);
 
 					if ($notify_poster)
 					{
-						$phpbb_notifications->add_notifications('notification.type.approve_topic', $topic_data);
+						$phpbb_notifications->add_notifications('approve_topic', $topic_data);
 					}
 				}
 			}
-
-			/**
-			 * Perform additional actions during topics(s) approval
-			 *
-			 * @event core.approve_topics_after
-			 * @var	string	action				Variable containing the action we perform on the posts ('approve' or 'restore')
-			 * @var	mixed	topic_info			Array containing info for all topics being approved
-			 * @var	array	first_post_ids		Array containing ids of all first posts
-			 * @var bool	notify_poster		Variable telling if the poster should be notified or not
-			 * @var	string	success_msg			Variable containing the language key for the success message
-			 * @var string	redirect			Variable containing the redirect url
-			 * @since 3.1.4-RC1
-			 */
-			$vars = array(
-				'action',
-				'topic_info',
-				'first_post_ids',
-				'notify_poster',
-				'success_msg',
-				'redirect',
-			);
-			extract($phpbb_dispatcher->trigger_event('core.approve_topics_after', compact($vars)));
 
 			meta_refresh(3, $redirect);
 			$message = $user->lang[$success_msg];
@@ -1054,7 +961,7 @@ class mcp_queue
 	*/
 	static public function disapprove_posts($post_id_list, $id, $mode)
 	{
-		global $db, $template, $user, $config, $phpbb_container, $phpbb_dispatcher;
+		global $db, $template, $user, $config, $phpbb_container;
 		global $phpEx, $phpbb_root_path, $request;
 
 		if (!phpbb_check_ids($post_id_list, POSTS_TABLE, 'post_id', array('m_approve')))
@@ -1224,12 +1131,12 @@ class mcp_queue
 					$topic_information[$topic_id]['topic_posts_softdeleted'] == 0 &&
 					$topic_information[$topic_id]['topic_posts_unapproved'] == $topic_posts_unapproved[$topic_id];
 
-				$phpbb_notifications->delete_notifications('notification.type.post_in_queue', $post_id);
+				$phpbb_notifications->delete_notifications('post_in_queue', $post_id);
 
 				// Do we disapprove the whole topic? Remove potential notifications
 				if ($disapprove_all_posts_in_topic)
 				{
-					$phpbb_notifications->delete_notifications('notification.type.topic_in_queue', $post_data['topic_id']);
+					$phpbb_notifications->delete_notifications('topic_in_queue', $post_data['topic_id']);
 				}
 
 				// Notify Poster?
@@ -1274,16 +1181,18 @@ class mcp_queue
 					{
 						// If there is only 1 post when disapproving the topic,
 						// we send the user a "disapprove topic" notification...
-						$phpbb_notifications->add_notifications('notification.type.disapprove_topic', $post_data);
+						$phpbb_notifications->add_notifications('disapprove_topic', $post_data);
 					}
 					else
 					{
 						// ... otherwise there are multiple unapproved posts and
 						// all of them are disapproved as posts.
-						$phpbb_notifications->add_notifications('notification.type.disapprove_post', $post_data);
+						$phpbb_notifications->add_notifications('disapprove_post', $post_data);
 					}
 				}
 			}
+
+			unset($lang_reasons, $post_info, $disapprove_reason, $disapprove_reason_lang);
 
 			if ($num_disapproved_topics)
 			{
@@ -1318,44 +1227,6 @@ class mcp_queue
 					$redirect = append_sid($phpbb_root_path . 'viewforum.' . $phpEx, 'f=' . $request->variable('f', 0));
 				}
 			}
-
-			/**
-			 * Perform additional actions during post(s) disapproval
-			 *
-			 * @event core.disapprove_posts_after
-			 * @var	array	post_info					Array containing info for all posts being disapproved
-			 * @var	array	topic_information			Array containing information for the topics
-			 * @var	array	topic_posts_unapproved		Array containing list of topic ids and the count of disapproved posts in them
-			 * @var	array	post_disapprove_list		Array containing list of posts and their topic id
-			 * @var	int		num_disapproved_topics		Variable containing the number of disapproved topics
-			 * @var	int		num_disapproved_posts		Variable containing the number of disapproved posts
-			 * @var array	lang_reasons				Array containing the language keys for reasons
-			 * @var	string	disapprove_reason			Variable containing the language key for the success message
-			 * @var	string	disapprove_reason_lang		Variable containing the language key for the success message
-			 * @var bool	is_disapproving				Variable telling if anything is going to be disapproved
-			 * @var bool	notify_poster				Variable telling if the post should be notified or not
-			 * @var	string	success_msg					Variable containing the language key for the success message
-			 * @var string	redirect					Variable containing the redirect url
-			 * @since 3.1.4-RC1
-			 */
-			$vars = array(
-				'post_info',
-				'topic_information',
-				'topic_posts_unapproved',
-				'post_disapprove_list',
-				'num_disapproved_topics',
-				'num_disapproved_posts',
-				'lang_reasons',
-				'disapprove_reason',
-				'disapprove_reason_lang',
-				'is_disapproving',
-				'notify_poster',
-				'success_msg',
-				'redirect',
-			);
-			extract($phpbb_dispatcher->trigger_event('core.disapprove_posts_after', compact($vars)));
-
-			unset($lang_reasons, $post_info, $disapprove_reason, $disapprove_reason_lang);
 
 			meta_refresh(3, $redirect);
 			$message = $user->lang[$success_msg];

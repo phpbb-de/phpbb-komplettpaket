@@ -20,7 +20,7 @@
 
 <!-- IF not S_PRIVMSGS -->
 	<div id="pageheader">
-		<h2><!-- IF TOPIC_TITLE --><!-- EVENT posting_topic_title_before --><a class="titles" href="{U_VIEW_TOPIC}">{TOPIC_TITLE}</a><!-- ELSE --><a class="titles" href="{U_VIEW_FORUM}">{FORUM_NAME}</a><!-- ENDIF --></h2>
+		<h2><!-- IF TOPIC_TITLE --><a class="titles" href="{U_VIEW_TOPIC}">{TOPIC_TITLE}</a><!-- ELSE --><a class="titles" href="{U_VIEW_FORUM}">{FORUM_NAME}</a><!-- ENDIF --></h2>
 
 		<!-- IF MODERATORS -->
 			<p class="moderators">{L_MODERATORS}{L_COLON} {MODERATORS}</p>
@@ -171,7 +171,6 @@
 <!-- EVENT posting_editor_subject_after -->
 <tr>
 	<td class="row1" valign="top"><b class="genmed">{L_MESSAGE_BODY}{L_COLON}</b><br /><span class="gensmall">{L_MESSAGE_BODY_EXPLAIN}&nbsp;</span><br /><br />
-	<!-- EVENT posting_editor_smilies_before -->
 	<!-- IF S_SMILIES_ALLOWED -->
 		<table width="100%" cellspacing="5" cellpadding="0" border="0" align="center">
 		<tr>
@@ -193,7 +192,6 @@
 
 		</table>
 	<!-- ENDIF -->
-	<!-- EVENT posting_editor_smilies_after -->
 	</td>
 	<td class="row2" valign="top">
 		<script type="text/javascript">
@@ -221,7 +219,7 @@
 <!-- IF S_INLINE_ATTACHMENT_OPTIONS -->
 	<tr>
 		<td class="row1"><b class="genmed">{L_ATTACHMENTS}{L_COLON}</b></td>
-		<td class="row2"><select name="attachments">{S_INLINE_ATTACHMENT_OPTIONS}</select>&nbsp;<input type="button" class="btnbbcode" accesskey="a" value="{L_PLACE_INLINE}" name="attachinline" onclick="attach_form = document.forms[form_name].elements['attachments']; attachInline(attach_form.value, attach_form.options[attach_form.selectedIndex].text);" onmouseover="helpline('a')" onmouseout="helpline('tip')" />
+		<td class="row2"><select name="attachments">{S_INLINE_ATTACHMENT_OPTIONS}</select>&nbsp;<input type="button" class="btnbbcode" accesskey="a" value="{L_PLACE_INLINE}" name="attachinline" onclick="attach_form = document.forms[form_name].elements['attachments']; attach_inline(attach_form.value, attach_form.options[attach_form.selectedIndex].text);" onmouseover="helpline('a')" onmouseout="helpline('tip')" />
 		</td>
 	</tr>
 <!-- ENDIF -->
@@ -248,7 +246,6 @@
 		</tr>
 		</table>
 	</td>
-	<!-- EVENT posting_editor_bbcode_status_after -->
 	<td class="row2">
 		<table cellpadding="1">
 		<!-- EVENT posting_editor_options_prepend -->
@@ -380,7 +377,6 @@
 	<td class="cat" colspan="2" align="center">{S_HIDDEN_FIELDS}
 		<input class="btnlite" type="submit" tabindex="10" name="preview" value="{L_PREVIEW}" />
 		&nbsp; <input class="btnmain" type="submit" accesskey="s" tabindex="11" name="post" value="{L_SUBMIT}" />
-		<!-- EVENT posting_editor_submit_buttons -->
 		<!-- IF not S_SHOW_ATTACH_BOX and not S_SHOW_POLL_BOX -->
 			<!-- IF S_SAVE_ALLOWED -->&nbsp; <input class="btnlite" type="submit" accesskey="k" tabindex="12" name="save" value="{L_SAVE_DRAFT}" /><!-- ENDIF -->
 			<!-- IF S_HAS_DRAFTS -->&nbsp; <input class="btnlite" type="submit" accesskey="d" tabindex="13" name="load" value="{L_LOAD_DRAFT}" /><!-- ENDIF -->

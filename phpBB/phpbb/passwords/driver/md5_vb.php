@@ -54,7 +54,7 @@ class md5_vb extends base
 		else
 		{
 			// Works for vB 3.8.x, 4.x.x, 5.0.x
-			return $this->helper->string_compare($hash, md5(md5($password) . $user_row['user_passwd_salt']));
+			return $hash === md5(md5($password) . $user_row['user_passwd_salt']);
 		}
 	}
 }

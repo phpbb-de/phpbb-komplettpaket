@@ -1063,14 +1063,6 @@ class install_update extends module
 									$transfer->write_file($file_struct['filename'], $contents);
 								}
 							break;
-
-							case 'deleted':
-
-								if ($update_mode != 'download')
-								{
-									$transfer->rename($file_struct['filename'], $file_struct['filename'] . '.bak');
-								}
-							break;
 						}
 					}
 				}

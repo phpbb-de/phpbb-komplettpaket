@@ -38,9 +38,9 @@ class datetime extends \DateTime
 	* Constructs a new instance of \phpbb\datetime, expanded to include an argument to inject
 	* the user context and modify the timezone to the users selected timezone if one is not set.
 	*
-	* @param user $user object for context.
 	* @param string $time String in a format accepted by strtotime().
 	* @param \DateTimeZone $timezone Time zone of the time.
+	* @param user $user object for context.
 	*/
 	public function __construct($user, $time = 'now', \DateTimeZone $timezone = null)
 	{
@@ -91,28 +91,25 @@ class datetime extends \DateTime
 
 				$midnight	= $midnight->getTimestamp();
 
-				if ($timestamp <= $midnight + 2 * 86400)
+				$day = false;
+
+				if ($timestamp > $midnight + 86400)
 				{
-					$day = false;
+					$day = 'TOMORROW';
+				}
+				else if ($timestamp > $midnight)
+				{
+					$day = 'TODAY';
+				}
+				else if ($timestamp > $midnight - 86400)
+				{
+					$day = 'YESTERDAY';
+				}
 
-					if ($timestamp > $midnight + 86400)
-					{
-						$day = 'TOMORROW';
-					}
-					else if ($timestamp > $midnight)
-					{
-						$day = 'TODAY';
-					}
-					else if ($timestamp > $midnight - 86400)
-					{
-						$day = 'YESTERDAY';
-					}
-
-					if ($day !== false)
-					{
-						// Format using the short formatting and finally swap out the relative token placeholder with the correct value
-						return str_replace(self::RELATIVE_WRAPPER . self::RELATIVE_WRAPPER, $this->user->lang['datetime'][$day], strtr(parent::format($format['format_short']), $format['lang']));
-					}
+				if ($day !== false)
+				{
+					// Format using the short formatting and finally swap out the relative token placeholder with the correct value
+					return str_replace(self::RELATIVE_WRAPPER . self::RELATIVE_WRAPPER, $this->user->lang['datetime'][$day], strtr(parent::format($format['format_short']), $format['lang']));
 				}
 			}
 		}

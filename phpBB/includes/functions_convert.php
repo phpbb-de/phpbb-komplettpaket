@@ -966,7 +966,7 @@ function get_remote_avatar_dim($src, $axis)
 	$protocol = (isset($url_info['scheme'])) ? $url_info['scheme'] : 'http';
 	if (empty($port))
 	{
-		switch (strtolower($protocol))
+		switch(strtolower($protocol))
 		{
 			case 'ftp':
 				$port = 21;
@@ -2148,7 +2148,6 @@ function fix_empty_primary_groups()
 	}
 
 	$sql = 'SELECT user_id FROM ' . USER_GROUP_TABLE . ' WHERE group_id = ' . get_group_id('global_moderators');
-	$result = $db->sql_query($sql);
 
 	$user_ids = array();
 	while ($row = $db->sql_fetchrow($result))

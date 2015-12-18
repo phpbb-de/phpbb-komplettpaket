@@ -44,13 +44,13 @@ function user_get_id_name(&$user_id_ary, &$username_ary, $user_type = false)
 
 	$which_ary = ($user_id_ary) ? 'user_id_ary' : 'username_ary';
 
-	if (${$which_ary} && !is_array(${$which_ary}))
+	if ($$which_ary && !is_array($$which_ary))
 	{
-		${$which_ary} = array(${$which_ary});
+		$$which_ary = array($$which_ary);
 	}
 
-	$sql_in = ($which_ary == 'user_id_ary') ? array_map('intval', ${$which_ary}) : array_map('utf8_clean_string', ${$which_ary});
-	unset(${$which_ary});
+	$sql_in = ($which_ary == 'user_id_ary') ? array_map('intval', $$which_ary) : array_map('utf8_clean_string', $$which_ary);
+	unset($$which_ary);
 
 	$user_id_ary = $username_ary = array();
 
@@ -161,10 +161,9 @@ function user_update_name($old_name, $new_name)
 *
 * @param mixed $user_row An array containing the following keys (and the appropriate values): username, group_id (the group to place the user in), user_email and the user_type(usually 0). Additional entries not overridden by defaults will be forwarded.
 * @param string $cp_data custom profile fields, see custom_profile::build_insert_sql_array
-* @param array $notifications_data The notifications settings for the new user
 * @return the new user's ID.
 */
-function user_add($user_row, $cp_data = false, $notifications_data = null)
+function user_add($user_row, $cp_data = false)
 {
 	global $db, $user, $auth, $config, $phpbb_root_path, $phpEx;
 	global $phpbb_dispatcher, $phpbb_container;
@@ -348,31 +347,6 @@ function user_add($user_row, $cp_data = false, $notifications_data = null)
 		set_config('newest_user_colour', $row['group_colour'], true);
 	}
 
-	// Use default notifications settings if notifications_data is not set
-	if ($notifications_data === null)
-	{
-		$notifications_data = array(
-			array(
-				'item_type'	=> 'notification.type.post',
-				'method'	=> 'notification.method.email',
-			),
-			array(
-				'item_type'	=> 'notification.type.topic',
-				'method'	=> 'notification.method.email',
-			),
-		);
-	}
-
-	// Subscribe user to notifications if necessary
-	if (!empty($notifications_data))
-	{
-		$phpbb_notifications = $phpbb_container->get('notification_manager');
-		foreach ($notifications_data as $subscription)
-		{
-			$phpbb_notifications->add_subscription($subscription['item_type'], 0, $subscription['method'], $user_id);
-		}
-	}
-
 	/**
 	* Event that returns user id, user detals and user CPF of newly registared user
 	*
@@ -389,16 +363,12 @@ function user_add($user_row, $cp_data = false, $notifications_data = null)
 }
 
 /**
- * Remove User
- *
- * @param string	$mode		Either 'retain' or 'remove'
- * @param mixed		$user_ids	Either an array of integers or an integer
- * @param bool		$retain_username
- * @return bool
- */
+* Remove User
+* @param $mode Either 'retain' or 'remove'
+*/
 function user_delete($mode, $user_ids, $retain_username = true)
 {
-	global $cache, $config, $db, $user, $phpbb_dispatcher, $phpbb_container;
+	global $cache, $config, $db, $user, $auth, $phpbb_dispatcher;
 	global $phpbb_root_path, $phpEx;
 
 	$db->sql_transaction('begin');
@@ -500,9 +470,6 @@ function user_delete($mode, $user_ids, $retain_username = true)
 
 	$num_users_delta = 0;
 
-	// Get auth provider collection in case accounts might need to be unlinked
-	$provider_collection = $phpbb_container->get('auth.provider_collection');
-
 	// Some things need to be done in the loop (if the query changes based
 	// on which user is currently being deleted)
 	$added_guest_posts = 0;
@@ -511,38 +478,6 @@ function user_delete($mode, $user_ids, $retain_username = true)
 		if ($user_row['user_avatar'] && $user_row['user_avatar_type'] == 'avatar.driver.upload')
 		{
 			avatar_delete('user', $user_row);
-		}
-
-		// Unlink accounts
-		foreach ($provider_collection as $provider_name => $auth_provider)
-		{
-			$provider_data = $auth_provider->get_auth_link_data($user_id);
-
-			if ($provider_data !== null)
-			{
-				$link_data = array(
-					'user_id' => $user_id,
-					'link_method' => 'user_delete',
-				);
-
-				// BLOCK_VARS might contain hidden fields necessary for unlinking accounts
-				if (isset($provider_data['BLOCK_VARS']) && is_array($provider_data['BLOCK_VARS']))
-				{
-					foreach ($provider_data['BLOCK_VARS'] as $provider_service)
-					{
-						if (!array_key_exists('HIDDEN_FIELDS', $provider_service))
-						{
-							$provider_service['HIDDEN_FIELDS'] = array();
-						}
-
-						$auth_provider->unlink_account(array_merge($link_data, $provider_service['HIDDEN_FIELDS']));
-					}
-				}
-				else
-				{
-					$auth_provider->unlink_account($link_data);
-				}
-			}
 		}
 
 		// Decrement number of users if this user is active
@@ -620,6 +555,11 @@ function user_delete($mode, $user_ids, $retain_username = true)
 			WHERE ' . $db->sql_in_set('poster_id', $user_ids);
 		$db->sql_query($sql);
 
+		$sql = 'UPDATE ' . POSTS_TABLE . '
+			SET post_edit_user = ' . ANONYMOUS . '
+			WHERE ' . $db->sql_in_set('post_edit_user', $user_ids);
+		$db->sql_query($sql);
+
 		$sql = 'UPDATE ' . USERS_TABLE . '
 			SET user_posts = user_posts + ' . $added_guest_posts . '
 			WHERE user_id = ' . ANONYMOUS;
@@ -648,30 +588,6 @@ function user_delete($mode, $user_ids, $retain_username = true)
 	}
 
 	$cache->destroy('sql', MODERATOR_CACHE_TABLE);
-
-	// Change user_id to anonymous for posts edited by this user
-	$sql = 'UPDATE ' . POSTS_TABLE . '
-		SET post_edit_user = ' . ANONYMOUS . '
-		WHERE ' . $db->sql_in_set('post_edit_user', $user_ids);
-	$db->sql_query($sql);
-
-	// Change user_id to anonymous for pms edited by this user
-	$sql = 'UPDATE ' . PRIVMSGS_TABLE . '
-		SET message_edit_user = ' . ANONYMOUS . '
-		WHERE ' . $db->sql_in_set('message_edit_user', $user_ids);
-	$db->sql_query($sql);
-
-	// Change user_id to anonymous for posts deleted by this user
-	$sql = 'UPDATE ' . POSTS_TABLE . '
-		SET post_delete_user = ' . ANONYMOUS . '
-		WHERE ' . $db->sql_in_set('post_delete_user', $user_ids);
-	$db->sql_query($sql);
-
-	// Change user_id to anonymous for topics deleted by this user
-	$sql = 'UPDATE ' . TOPICS_TABLE . '
-		SET topic_delete_user = ' . ANONYMOUS . '
-		WHERE ' . $db->sql_in_set('topic_delete_user', $user_ids);
-	$db->sql_query($sql);
 
 	// Delete user log entries about this user
 	$sql = 'DELETE FROM ' . LOG_TABLE . '
@@ -707,9 +623,6 @@ function user_delete($mode, $user_ids, $retain_username = true)
 	}
 	phpbb_delete_users_pms($user_ids);
 
-	$phpbb_notifications = $phpbb_container->get('notification_manager');
-	$phpbb_notifications->delete_notifications('notification.type.admin_activate_user', $user_ids);
-
 	$db->sql_transaction('commit');
 
 	/**
@@ -741,7 +654,7 @@ function user_delete($mode, $user_ids, $retain_username = true)
 */
 function user_active_flip($mode, $user_id_ary, $reason = INACTIVE_MANUAL)
 {
-	global $config, $db, $user, $auth, $phpbb_dispatcher;
+	global $config, $db, $user, $auth;
 
 	$deactivated = $activated = 0;
 	$sql_statements = array();
@@ -794,21 +707,6 @@ function user_active_flip($mode, $user_id_ary, $reason = INACTIVE_MANUAL)
 	}
 	$db->sql_freeresult($result);
 
-	/**
-	* Check or modify activated/deactivated users data before submitting it to the database
-	*
-	* @event core.user_active_flip_before
-	* @var	string	mode			User type changing mode, can be: flip|activate|deactivate
-	* @var	int		reason			Reason for changing user type, can be: INACTIVE_REGISTER|INACTIVE_PROFILE|INACTIVE_MANUAL|INACTIVE_REMIND
-	* @var	int		activated		The number of users to be activated
-	* @var	int		deactivated		The number of users to be deactivated
-	* @var	array	user_id_ary		Array with user ids to change user type
-	* @var	array	sql_statements	Array with users data to submit to the database, keys: user ids, values: arrays with user data
-	* @since 3.1.4-RC1
-	*/
-	$vars = array('mode', 'reason', 'activated', 'deactivated', 'user_id_ary', 'sql_statements');
-	extract($phpbb_dispatcher->trigger_event('core.user_active_flip_before', compact($vars)));
-
 	if (sizeof($sql_statements))
 	{
 		foreach ($sql_statements as $user_id => $sql_ary)
@@ -821,21 +719,6 @@ function user_active_flip($mode, $user_id_ary, $reason = INACTIVE_MANUAL)
 
 		$auth->acl_clear_prefetch(array_keys($sql_statements));
 	}
-
-	/**
-	* Perform additional actions after the users have been activated/deactivated
-	*
-	* @event core.user_active_flip_after
-	* @var	string	mode			User type changing mode, can be: flip|activate|deactivate
-	* @var	int		reason			Reason for changing user type, can be: INACTIVE_REGISTER|INACTIVE_PROFILE|INACTIVE_MANUAL|INACTIVE_REMIND
-	* @var	int		activated		The number of users to be activated
-	* @var	int		deactivated		The number of users to be deactivated
-	* @var	array	user_id_ary		Array with user ids to change user type
-	* @var	array	sql_statements	Array with users data to submit to the database, keys: user ids, values: arrays with user data
-	* @since 3.1.4-RC1
-	*/
-	$vars = array('mode', 'reason', 'activated', 'deactivated', 'user_id_ary', 'sql_statements');
-	extract($phpbb_dispatcher->trigger_event('core.user_active_flip_after', compact($vars)));
 
 	if ($deactivated)
 	{
@@ -1402,7 +1285,7 @@ function user_ipwhois($ip)
 	$match = array();
 
 	// Test for referrals from $whois_host to other whois databases, roll on rwhois
-	if (preg_match('#ReferralServer:[\x20]*whois://(.+)#im', $ipwhois, $match))
+	if (preg_match('#ReferralServer: whois://(.+)#im', $ipwhois, $match))
 	{
 		if (strpos($match[1], ':') !== false)
 		{
@@ -2792,7 +2675,7 @@ function group_user_add($group_id, $user_id_ary = false, $username_ary = false, 
 
 		foreach ($add_id_ary as $user_id)
 		{
-			$phpbb_notifications->add_notifications('notification.type.group_request', array(
+			$phpbb_notifications->add_notifications('group_request', array(
 				'group_id'		=> $group_id,
 				'user_id'		=> $user_id,
 				'group_name'	=> $group_name,
@@ -2949,7 +2832,7 @@ function group_user_del($group_id, $user_id_ary = false, $username_ary = false, 
 
 	$phpbb_notifications = $phpbb_container->get('notification_manager');
 
-	$phpbb_notifications->delete_notifications('notification.type.group_request', $user_id_ary, $group_id);
+	$phpbb_notifications->delete_notifications('group_request', $user_id_ary, $group_id);
 
 	// Return false - no error
 	return false;
@@ -3113,12 +2996,12 @@ function group_user_attributes($action, $group_id, $user_id_ary = false, $userna
 
 			$phpbb_notifications = $phpbb_container->get('notification_manager');
 
-			$phpbb_notifications->add_notifications('notification.type.group_request_approved', array(
+			$phpbb_notifications->add_notifications('group_request_approved', array(
 				'user_ids'		=> $user_id_ary,
 				'group_id'		=> $group_id,
 				'group_name'	=> $group_name,
 			));
-			$phpbb_notifications->delete_notifications('notification.type.group_request', $user_id_ary, $group_id);
+			$phpbb_notifications->delete_notifications('group_request', $user_id_ary, $group_id);
 
 			$log = 'LOG_USERS_APPROVED';
 		break;

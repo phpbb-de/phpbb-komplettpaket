@@ -32,19 +32,15 @@
 	<table width="100%" cellspacing="1">
 	<tr>
 		<td align="{S_CONTENT_FLOW_BEGIN}" valign="middle" nowrap="nowrap">
-		<!-- EVENT viewtopic_buttons_top_before -->
-
 		<!-- IF not S_IS_BOT -->
 			<!-- IF S_DISPLAY_POST_INFO --><a href="{U_POST_NEW_TOPIC}" class="imageset">{POST_IMG}</a>&nbsp;<!-- ENDIF -->
 			<!-- IF S_DISPLAY_REPLY_INFO --><a href="{U_POST_REPLY_TOPIC}" class="imageset">{REPLY_IMG}</a><!-- ENDIF -->
 		<!-- ENDIF -->
-
-		<!-- EVENT viewtopic_buttons_top_after -->
 		</td>
 		<!-- IF TOTAL_POSTS -->
 			<td class="nav" valign="middle" nowrap="nowrap">&nbsp;{PAGE_NUMBER}<br /></td>
 			<td class="gensmall" nowrap="nowrap">&nbsp;[ {TOTAL_POSTS} ]&nbsp;</td>
-			<td class="gensmall" width="100%" align="{S_CONTENT_FLOW_END}" nowrap="nowrap"><!-- INCLUDE pagination.html --><!-- EVENT viewtopic_body_pagination_top_after --></td>
+			<td class="gensmall" width="100%" align="{S_CONTENT_FLOW_END}" nowrap="nowrap"><!-- INCLUDE pagination.html --></td>
 		<!-- ENDIF -->
 	</tr>
 	</table>
@@ -68,7 +64,6 @@
 			</table>
 		</td>
 	</tr>
-<!-- EVENT viewtopic_body_poll_before -->
 <!-- IF S_HAS_POLL -->
 	<tr>
 		<td class="row2" colspan="2" align="center"><br clear="all" />
@@ -131,7 +126,6 @@
 		</td>
 	</tr>
 <!-- ENDIF -->
-<!-- EVENT viewtopic_body_poll_after -->
 	</table>
 
 <!-- BEGIN postrow -->
@@ -165,11 +159,8 @@
 					<a id="unread" class="anchor"<!-- IF S_UNREAD_VIEW --> data-url="{postrow.U_MINI_POST}"<!-- ENDIF -->></a>
 				<!-- ENDIF -->
 				<a name="p{postrow.POST_ID}" class="anchor"></a>
-				<!-- EVENT viewtopic_body_post_author_before -->
 				<b class="postauthor"<!-- IF postrow.POST_AUTHOR_COLOUR --> style="color: {postrow.POST_AUTHOR_COLOUR}"<!-- ENDIF -->>{postrow.POST_AUTHOR}</b>
-				<!-- EVENT viewtopic_body_post_author_after -->
 			</td>
-			<!-- EVENT viewtopic_body_postrow_post_details_before -->
 			<td width="100%" height="25">
 				<table width="100%" cellspacing="0">
 				<tr>
@@ -180,7 +171,6 @@
 				</tr>
 				</table>
 			</td>
-			<!-- EVENT viewtopic_body_postrow_post_details_after -->
 		</tr>
 
 		<!-- IF postrow.S_ROW_COUNT is even --><tr class="row1"><!-- ELSE --><tr class="row2"><!-- ENDIF -->
@@ -192,7 +182,6 @@
 					<td>{postrow.ONLINE_IMG}</td>
 				</tr>
 			<!-- ENDIF -->
-			<!-- EVENT viewtopic_body_postrow_rank_before -->
 			<!-- IF postrow.RANK_TITLE -->
 				<tr>
 					<td class="postdetails">{postrow.RANK_TITLE}</td>
@@ -203,16 +192,11 @@
 					<td>{postrow.RANK_IMG}</td>
 				</tr>
 			<!-- ENDIF -->
-			<!-- EVENT viewtopic_body_postrow_rank_after -->
-
-			<!-- EVENT viewtopic_body_avatar_before -->
 			<!-- IF postrow.POSTER_AVATAR -->
 				<tr>
 					<td>{postrow.POSTER_AVATAR}</td>
 				</tr>
 			<!-- ENDIF -->
-			<!-- EVENT viewtopic_body_avatar_after -->
-
 			<!-- IF not (postrow.ONLINE_IMG or postrow.RANK_TITLE or postrow.RANK_IMG or postrow.POSTER_AVATAR) -->
 				<tr>
 					<td></td>
@@ -320,8 +304,6 @@
 					<!-- ENDIF -->
 					<!-- EVENT viewtopic_body_postrow_post_notices_after -->
 
-					<!-- EVENT viewtopic_body_postrow_post_content_footer -->
-
 					<!-- IF not postrow.S_HAS_ATTACHMENTS --><br clear="all" /><br /><!-- ENDIF -->
 
 						<table width="100%" cellspacing="0">
@@ -383,14 +365,10 @@
 	<table width="100%" cellspacing="1">
 	<tr>
 		<td align="{S_CONTENT_FLOW_BEGIN}" valign="middle" nowrap="nowrap">
-		<!-- EVENT viewtopic_buttons_bottom_before -->
-
 		<!-- IF not S_IS_BOT -->
 			<!-- IF S_DISPLAY_POST_INFO --><a href="{U_POST_NEW_TOPIC}" class="imageset">{POST_IMG}</a>&nbsp;<!-- ENDIF -->
 			<!-- IF S_DISPLAY_REPLY_INFO --><a href="{U_POST_REPLY_TOPIC}" class="imageset">{REPLY_IMG}</a><!-- ENDIF -->
 		<!-- ENDIF -->
-
-		<!-- EVENT viewtopic_buttons_bottom_after -->
 		</td>
 		<!-- IF TOTAL_POSTS -->
 			<td class="nav" valign="middle" nowrap="nowrap">&nbsp;{PAGE_NUMBER}<br /></td>

@@ -402,9 +402,17 @@ class messenger
 	*/
 	function generate_message_id()
 	{
-		global $config, $request;
+		global $config;
 
-		$domain = ($config['server_name']) ?: $request->server('SERVER_NAME', 'phpbb.generated');
+		$domain = 'phpbb.generated';
+		if ($config['server_name'])
+		{
+			$domain = $config['server_name'];
+		}
+		else if (!empty($_SERVER['SERVER_NAME']))
+		{
+			$domain = $_SERVER['SERVER_NAME'];
+		}
 
 		return md5(unique_id(time())) . '@' . $domain;
 	}
@@ -510,7 +518,7 @@ class messenger
 
 			foreach ($address_ary as $which_ary)
 			{
-				${$type} .= ((${$type} != '') ? ', ' : '') . (($which_ary['name'] != '') ? mail_encode($which_ary['name'], $encode_eol) . ' <' . $which_ary['email'] . '>' : $which_ary['email']);
+				$$type .= (($$type != '') ? ', ' : '') . (($which_ary['name'] != '') ? mail_encode($which_ary['name'], $encode_eol) . ' <' . $which_ary['email'] . '>' : $which_ary['email']);
 			}
 		}
 

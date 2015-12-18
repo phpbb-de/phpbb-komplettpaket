@@ -26,7 +26,7 @@ class queue extends \phpbb\cron\task\base
 	* Constructor.
 	*
 	* @param string $phpbb_root_path The root path
-	* @param string $php_ext PHP file extension
+	* @param string $php_ext The PHP extension
 	* @param \phpbb\config\config $config The config
 	*/
 	public function __construct($phpbb_root_path, $php_ext, \phpbb\config\config $config)
@@ -73,6 +73,6 @@ class queue extends \phpbb\cron\task\base
 	*/
 	public function should_run()
 	{
-		return $this->config['last_queue_run'] < time() - $this->config['queue_interval'];
+		return $this->config['last_queue_run'] < time() - $this->config['queue_interval_config'];
 	}
 }

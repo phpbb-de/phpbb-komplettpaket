@@ -26,27 +26,27 @@ class set_atomic extends command
 	{
 		$this
 			->setName('config:set-atomic')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_SET_ATOMIC_CONFIG'))
+			->setDescription("Sets a configuration option's value only if the old matches the current value.")
 			->addArgument(
 				'key',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_OPTION_NAME')
+				"The configuration option's name"
 			)
 			->addArgument(
 				'old',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_CURRENT')
+				'Current configuration value, use 0 and 1 to specify boolean values'
 			)
 			->addArgument(
 				'new',
 				InputArgument::REQUIRED,
-				$this->user->lang('CLI_CONFIG_NEW')
+				'New configuration value, use 0 and 1 to specify boolean values'
 			)
 			->addOption(
 				'dynamic',
 				'd',
 				InputOption::VALUE_NONE,
-				$this->user->lang('CLI_CONFIG_CANNOT_CACHED')
+				'Set this option if the configuration option changes too frequently to be efficiently cached.'
 			)
 		;
 	}
@@ -72,12 +72,12 @@ class set_atomic extends command
 
 		if ($this->config->set_atomic($key, $old_value, $new_value, $use_cache))
 		{
-			$output->writeln('<info>' . $this->user->lang('CLI_CONFIG_SET_SUCCESS', $key) . '</info>');
+			$output->writeln("<info>Successfully set config $key</info>");
 			return 0;
 		}
 		else
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_CONFIG_SET_FAILURE', $key) . '</error>');
+			$output->writeln("<error>Could not set config $key</error>");
 			return 1;
 		}
 	}

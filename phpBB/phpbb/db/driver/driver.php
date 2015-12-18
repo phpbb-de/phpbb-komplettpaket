@@ -372,17 +372,6 @@ abstract class driver implements driver_interface
 	/**
 	* {@inheritDoc}
 	*/
-	function sql_not_like_expression($expression)
-	{
-		$expression = utf8_str_replace(array('_', '%'), array("\_", "\%"), $expression);
-		$expression = utf8_str_replace(array(chr(0) . "\_", chr(0) . "\%"), array('_', '%'), $expression);
-
-		return $this->_sql_not_like_expression('NOT LIKE \'' . $this->sql_escape($expression) . '\'');
-	}
-
-	/**
-	* {@inheritDoc}
-	*/
 	public function sql_case($condition, $action_true, $action_false = false)
 	{
 		$sql_case = 'CASE WHEN ' . $condition;
@@ -962,7 +951,7 @@ abstract class driver implements driver_interface
 				{
 					if (preg_match('/^(UPDATE|DELETE|REPLACE)/', $query))
 					{
-						$this->sql_report .= 'Affected rows: <b>' . $this->sql_affectedrows() . '</b> | ';
+						$this->sql_report .= 'Affected rows: <b>' . $this->sql_affectedrows($this->query_result) . '</b> | ';
 					}
 					$this->sql_report .= 'Before: ' . sprintf('%.5f', $this->curtime - $starttime) . 's | After: ' . sprintf('%.5f', $endtime - $starttime) . 's | Elapsed: <b>' . sprintf('%.5f', $endtime - $this->curtime) . 's</b>';
 				}

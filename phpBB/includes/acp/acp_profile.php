@@ -31,7 +31,7 @@ class acp_profile
 	{
 		global $config, $db, $user, $auth, $template, $cache;
 		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $table_prefix;
-		global $request, $phpbb_container, $phpbb_dispatcher;
+		global $request, $phpbb_container;
 
 		include($phpbb_root_path . 'includes/functions_posting.' . $phpEx);
 		include($phpbb_root_path . 'includes/functions_user.' . $phpEx);
@@ -112,8 +112,58 @@ class acp_profile
 					$db->sql_query('DELETE FROM ' . PROFILE_FIELDS_LANG_TABLE . " WHERE field_id = $field_id");
 					$db->sql_query('DELETE FROM ' . PROFILE_LANG_TABLE . " WHERE field_id = $field_id");
 
-					$db_tools = $phpbb_container->get('dbal.tools');
-					$db_tools->sql_column_remove(PROFILE_FIELDS_DATA_TABLE, 'pf_' . $field_ident);
+					switch ($db->get_sql_layer())
+					{
+						case 'sqlite':
+						case 'sqlite3':
+							$sql = "SELECT sql
+								FROM sqlite_master
+								WHERE type = 'table'
+									AND name = '" . PROFILE_FIELDS_DATA_TABLE . "'
+								ORDER BY type DESC, name;";
+							$result = $db->sql_query($sql);
+							$row = $db->sql_fetchrow($result);
+							$db->sql_freeresult($result);
+
+							// Create a temp table and populate it, destroy the existing one
+							$db->sql_query(preg_replace('#CREATE\s+TABLE\s+"?' . PROFILE_FIELDS_DATA_TABLE . '"?#i', 'CREATE TEMPORARY TABLE ' . PROFILE_FIELDS_DATA_TABLE . '_temp', $row['sql']));
+							$db->sql_query('INSERT INTO ' . PROFILE_FIELDS_DATA_TABLE . '_temp SELECT * FROM ' . PROFILE_FIELDS_DATA_TABLE);
+							$db->sql_query('DROP TABLE ' . PROFILE_FIELDS_DATA_TABLE);
+
+							preg_match('#\((.*)\)#s', $row['sql'], $matches);
+
+							$new_table_cols = trim($matches[1]);
+							$old_table_cols = preg_split('/,(?=[\\sa-z])/im', $new_table_cols);
+							$column_list = array();
+
+							foreach ($old_table_cols as $declaration)
+							{
+								$entities = preg_split('#\s+#', trim($declaration));
+
+								if ($entities[0] == 'PRIMARY')
+								{
+									continue;
+								}
+
+								if ($entities[0] !== 'pf_' . $field_ident)
+								{
+									$column_list[] = $entities[0];
+								}
+							}
+
+							$columns = implode(',', $column_list);
+
+							$new_table_cols = preg_replace('/' . 'pf_' . $field_ident . '[^,]+,/', '', $new_table_cols);
+
+							// create a new table and fill it up. destroy the temp one
+							$db->sql_query('CREATE TABLE ' . PROFILE_FIELDS_DATA_TABLE . ' (' . $new_table_cols . ');');
+							$db->sql_query('INSERT INTO ' . PROFILE_FIELDS_DATA_TABLE . ' (' . $columns . ') SELECT ' . $columns . ' FROM ' . PROFILE_FIELDS_DATA_TABLE . '_temp;');
+							$db->sql_query('DROP TABLE ' . PROFILE_FIELDS_DATA_TABLE . '_temp');
+						break;
+
+						default:
+							$db->sql_query('ALTER TABLE ' . PROFILE_FIELDS_DATA_TABLE . " DROP COLUMN pf_$field_ident");
+					}
 
 					$order = 0;
 
@@ -369,32 +419,6 @@ class acp_profile
 					'field_is_contact',
 				);
 
-				/**
-				* Event to add initialization for new profile field table fields
-				*
-				* @event core.acp_profile_create_edit_init
-				* @var	string	action			create|edit
-				* @var	int		step			Configuration step (1|2|3)
-				* @var	bool	submit			Form has been submitted
-				* @var	bool	save			Configuration should be saved
-				* @var	string	field_type		Type of the field we are dealing with
-				* @var	array	field_row		Array of data about the field
-				* @var	array	exclude			Array of excluded fields by step
-				* @var	array	visibility_ary	Array of fields that are visibility related
-				* @since 3.1.6-RC1
-				*/
-				$vars = array(
-					'action',
-					'step',
-					'submit',
-					'save',
-					'field_type',
-					'field_row',
-					'exclude',
-					'visibility_ary',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.acp_profile_create_edit_init', compact($vars)));
-
 				$options = $profile_field->prepare_options_form($exclude, $visibility_ary);
 
 				$cp->vars['field_ident']		= ($action == 'create' && $step == 1) ? utf8_clean_string(request_var('field_ident', $field_row['field_ident'], true)) : request_var('field_ident', $field_row['field_ident']);
@@ -486,7 +510,7 @@ class acp_profile
 
 					if (!$cp->vars[$key] && $action == 'edit')
 					{
-						$cp->vars[$key] = ${$key};
+						$cp->vars[$key] = $$key;
 					}
 
 					$field_data = $cp->vars;
@@ -670,33 +694,6 @@ class acp_profile
 					break;
 				}
 
-				$field_data = $cp->vars;
-				/**
-				* Event to add template variables for new profile field table fields
-				*
-				* @event core.acp_profile_create_edit_after
-				* @var	string	action			create|edit
-				* @var	int		step			Configuration step (1|2|3)
-				* @var	bool	submit			Form has been submitted
-				* @var	bool	save			Configuration should be saved
-				* @var	string	field_type		Type of the field we are dealing with
-				* @var	array	field_data		Array of data about the field
-				* @var	array	s_hidden_fields	Array of hidden fields in case this needs modification
-				* @var	array	options			Array of options specific to this step
-				* @since 3.1.6-RC1
-				*/
-				$vars = array(
-					'action',
-					'step',
-					'submit',
-					'save',
-					'field_type',
-					'field_data',
-					's_hidden_fields',
-					'options',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.acp_profile_create_edit_after', compact($vars)));
-
 				$template->assign_vars(array(
 					'S_HIDDEN_FIELDS'	=> $s_hidden_fields)
 				);
@@ -863,7 +860,7 @@ class acp_profile
 	*/
 	function save_profile_field(&$cp, $field_type, $action = 'create')
 	{
-		global $db, $config, $user, $phpbb_container, $phpbb_dispatcher;
+		global $db, $config, $user, $phpbb_container;
 
 		$field_id = request_var('field_id', 0);
 
@@ -905,25 +902,6 @@ class acp_profile
 			'field_contact_url'		=> $cp->vars['field_contact_url'],
 		);
 
-		$field_data = $cp->vars;
-		/**
-		* Event to modify profile field configuration data before saving to database
-		*
-		* @event core.acp_profile_create_edit_save_before
-		* @var	string	action			create|edit
-		* @var	string	field_type		Type of the field we are dealing with
-		* @var	array	field_data		Array of data about the field
-		* @var	array	profile_fields	Array of fields to be sent to the database
-		* @since 3.1.6-RC1
-		*/
-		$vars = array(
-			'action',
-			'field_type',
-			'field_data',
-			'profile_fields',
-		);
-		extract($phpbb_dispatcher->trigger_event('core.acp_profile_create_edit_save_before', compact($vars)));
-
 		if ($action == 'create')
 		{
 			$profile_fields += array(
@@ -954,7 +932,9 @@ class acp_profile
 			$field_ident = 'pf_' . $field_ident;
 
 			$db_tools = $phpbb_container->get('dbal.tools');
-			$db_tools->sql_column_add(PROFILE_FIELDS_DATA_TABLE, $field_ident, array($profile_field->get_database_column_type(), null));
+
+			list($sql_type, $null) = $db_tools->get_column_type($profile_field->get_database_column_type());
+			$profile_sql[] = $this->add_field_ident($field_ident, $sql_type);
 		}
 
 		$sql_ary = array(
@@ -1207,5 +1187,92 @@ class acp_profile
 				$db->sql_query($sql);
 			}
 		}
+	}
+
+	/**
+	* Return sql statement for adding a new field ident (profile field) to the profile fields data table
+	*/
+	function add_field_ident($field_ident, $sql_type)
+	{
+		global $db;
+
+		switch ($db->get_sql_layer())
+		{
+			case 'mysql':
+			case 'mysql4':
+			case 'mysqli':
+				$sql = 'ALTER TABLE ' . PROFILE_FIELDS_DATA_TABLE . " ADD `$field_ident` " . $sql_type;
+
+			break;
+
+			case 'sqlite':
+			case 'sqlite3':
+				if (version_compare($db->sql_server_info(true), '3.0') == -1)
+				{
+					$sql = "SELECT sql
+						FROM sqlite_master
+						WHERE type = 'table'
+							AND name = '" . PROFILE_FIELDS_DATA_TABLE . "'
+						ORDER BY type DESC, name;";
+					$result = $db->sql_query($sql);
+					$row = $db->sql_fetchrow($result);
+					$db->sql_freeresult($result);
+
+					// Create a temp table and populate it, destroy the existing one
+					$db->sql_query(preg_replace('#CREATE\s+TABLE\s+"?' . PROFILE_FIELDS_DATA_TABLE . '"?#i', 'CREATE TEMPORARY TABLE ' . PROFILE_FIELDS_DATA_TABLE . '_temp', $row['sql']));
+					$db->sql_query('INSERT INTO ' . PROFILE_FIELDS_DATA_TABLE . '_temp SELECT * FROM ' . PROFILE_FIELDS_DATA_TABLE);
+					$db->sql_query('DROP TABLE ' . PROFILE_FIELDS_DATA_TABLE);
+
+					preg_match('#\((.*)\)#s', $row['sql'], $matches);
+
+					$new_table_cols = trim($matches[1]);
+					$old_table_cols = explode(',', $new_table_cols);
+					$column_list = array();
+
+					foreach ($old_table_cols as $declaration)
+					{
+						$entities = preg_split('#\s+#', trim($declaration));
+						if ($entities[0] == 'PRIMARY')
+						{
+							continue;
+						}
+						$column_list[] = $entities[0];
+					}
+
+					$columns = implode(',', $column_list);
+
+					$new_table_cols = $field_ident . ' ' . $sql_type . ',' . $new_table_cols;
+
+					// create a new table and fill it up. destroy the temp one
+					$db->sql_query('CREATE TABLE ' . PROFILE_FIELDS_DATA_TABLE . ' (' . $new_table_cols . ');');
+					$db->sql_query('INSERT INTO ' . PROFILE_FIELDS_DATA_TABLE . ' (' . $columns . ') SELECT ' . $columns . ' FROM ' . PROFILE_FIELDS_DATA_TABLE . '_temp;');
+					$db->sql_query('DROP TABLE ' . PROFILE_FIELDS_DATA_TABLE . '_temp');
+				}
+				else
+				{
+					$sql = 'ALTER TABLE ' . PROFILE_FIELDS_DATA_TABLE . " ADD $field_ident [$sql_type]";
+				}
+
+			break;
+
+			case 'mssql':
+			case 'mssql_odbc':
+			case 'mssqlnative':
+				$sql = 'ALTER TABLE [' . PROFILE_FIELDS_DATA_TABLE . "] ADD [$field_ident] " . $sql_type;
+
+			break;
+
+			case 'postgres':
+				$sql = 'ALTER TABLE ' . PROFILE_FIELDS_DATA_TABLE . " ADD COLUMN \"$field_ident\" " . $sql_type;
+
+			break;
+
+			case 'oracle':
+				$sql = 'ALTER TABLE ' . PROFILE_FIELDS_DATA_TABLE . " ADD $field_ident " . $sql_type;
+
+			break;
+		}
+
+		return $sql;
 	}
 }

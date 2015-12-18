@@ -14,24 +14,15 @@
 <!-- ENDIF -->
 
 
-<div id="post-{MESSAGE_ID}" class="post pm has-profile<!-- IF S_POST_UNAPPROVED or S_POST_REPORTED --> reported<!-- ENDIF --><!-- IF S_ONLINE --> online<!-- ENDIF -->">
+<div id="post-{MESSAGE_ID}" class="post pm<!-- IF S_POST_UNAPPROVED or S_POST_REPORTED --> reported<!-- ENDIF --><!-- IF S_ONLINE --> online<!-- ENDIF -->">
 <div class="inner">
 
 	<dl class="postprofile" id="profile{MESSAGE_ID}">
-		<dt class="<!-- IF RANK_TITLE or RANK_IMG -->has-profile-rank<!-- ELSE -->no-profile-rank<!-- ENDIF --> <!-- IF AUTHOR_AVATAR -->has-avatar<!-- ELSE -->no-avatar<!-- ENDIF -->">
-			<div class="avatar-container">
-				<!-- EVENT ucp_pm_viewmessage_avatar_before -->
-				<!-- IF AUTHOR_AVATAR --><a href="{U_MESSAGE_AUTHOR}" class="avatar">{AUTHOR_AVATAR}</a><!-- ENDIF -->
-				<!-- EVENT ucp_pm_viewmessage_avatar_after -->
-			</div>
-			{MESSAGE_AUTHOR_FULL}
-		</dt>
+		<dt class="<!-- IF RANK_TITLE or RANK_IMG -->has-profile-rank<!-- ELSE -->no-profile-rank<!-- ENDIF -->"><!-- IF AUTHOR_AVATAR --><a href="{U_MESSAGE_AUTHOR}" class="avatar">{AUTHOR_AVATAR}</a><!-- ENDIF -->{MESSAGE_AUTHOR_FULL}</dt>
 
-		<!-- EVENT ucp_pm_viewmessage_rank_before -->
 		<!-- IF RANK_TITLE or RANK_IMG --><dd class="profile-rank">{RANK_TITLE}<!-- IF RANK_TITLE and RANK_IMG --><br /><!-- ENDIF -->{RANK_IMG}</dd><!-- ENDIF -->
-		<!-- EVENT ucp_pm_viewmessage_rank_after -->
 
-		<dd class="profile-posts"><strong>{L_POSTS}{L_COLON}</strong> <!-- IF U_AUTHOR_POSTS != '' --><a href="{U_AUTHOR_POSTS}">{AUTHOR_POSTS}</a><!-- ELSE -->{AUTHOR_POSTS}<!-- ENDIF --></dd>
+		<dd class="profile-posts"><strong>{L_POSTS}{L_COLON}</strong> {AUTHOR_POSTS}</dd>
 		<!-- IF AUTHOR_JOINED --><dd class="profile-joined"><strong>{L_JOINED}{L_COLON}</strong> {AUTHOR_JOINED}</dd><!-- ENDIF -->
 
 		<!-- EVENT ucp_pm_viewmessage_custom_fields_before -->
@@ -57,14 +48,13 @@
 								<!-- IF REMAINDER eq 0 -->
 									<div>
 								<!-- ENDIF -->
-									<a href="<!-- IF contact.U_CONTACT -->{contact.U_CONTACT}<!-- ELSE -->{contact.U_PROFILE_AUTHOR}<!-- ENDIF -->" title="{contact.NAME}"<!-- IF $S_LAST_CELL --> class="last-cell"<!-- ENDIF --><!-- IF contact.ID eq 'jabber' --> onclick="popup(this.href, 750, 320); return false;"<!-- ENDIF -->>
+									<a href="<!-- IF contact.U_CONTACT -->{contact.U_CONTACT}<!-- ELSE -->{contact.U_PROFILE_AUTHOR}<!-- ENDIF -->" title="{contact.NAME}"<!-- IF $S_LAST_CELL --> class="last-cell"<!-- ENDIF --><!-- IF contact.ID eq 'jabber' --> onclick="popup(this.href, 550, 320); return false;"<!-- ENDIF -->>
 										<span class="contact-icon {contact.ID}-icon">{contact.NAME}</span>
 									</a>
 								<!-- IF REMAINDER eq 3 or contact.S_LAST_ROW -->
 									</div>
 								<!-- ENDIF -->
 							<!-- END contact -->
-						</div>
 					</div>
 				</div>
 			</dd>
@@ -75,11 +65,8 @@
 	<div class="postbody">
 		<h3 class="first">{SUBJECT}</h3>
 
-		<!-- DEFINE $SHOW_PM_POST_BUTTONS = (U_EDIT or U_DELETE or U_REPORT or U_QUOTE) -->
-		<!-- EVENT ucp_pm_viewmessage_post_buttons_list_before -->
-		<!-- IF $SHOW_PM_POST_BUTTONS -->
+		<!-- IF U_DELETE or U_EDIT or U_QUOTE or U_REPORT -->
 		<ul class="post-buttons">
-			<!-- EVENT ucp_pm_viewmessage_post_buttons_before -->
 			<!-- IF U_EDIT -->
 				<li>
 					<a href="{U_EDIT}" title="{L_POST_EDIT_PM}" class="button icon-button edit-icon"><span>{L_POST_EDIT_PM}</span></a>
@@ -100,10 +87,8 @@
 					<a href="{U_QUOTE}" title="{L_POST_QUOTE_PM}" class="button icon-button quote-icon"><span>{L_POST_QUOTE_PM}</span></a>
 				</li>
 			<!-- ENDIF -->
-			<!-- EVENT ucp_pm_viewmessage_post_buttons_after -->
 		</ul>
 		<!-- ENDIF -->
-		<!-- EVENT ucp_pm_viewmessage_post_buttons_list_after -->
 
 		<p class="author">
 			<strong>{L_SENT_AT}{L_COLON}</strong> {SENT_DATE}
@@ -119,6 +104,16 @@
 			<dl class="attachbox">
 				<dt>
 					{L_ATTACHMENTS}
+					<!-- IF S_HAS_MULTIPLE_ATTACHMENTS -->
+						<div class="dl_links">
+							<strong>{L_DOWNLOAD_ALL}{L_COLON}</strong>
+							<ul>
+							<!-- BEGIN dl_method -->
+								<li>[ <a href="{dl_method.LINK}">{dl_method.TYPE}</a> ]</li>
+							<!-- END dl_method -->
+							</ul>
+						</div>
+					<!-- ENDIF -->
 				</dt>
 				<!-- BEGIN attachment -->
 					<dd>{attachment.DISPLAY_ATTACHMENT}</dd>

@@ -65,16 +65,13 @@ class acp_board
 						'default_lang'			=> array('lang' => 'DEFAULT_LANGUAGE',		'validate' => 'lang',	'type' => 'select', 'function' => 'language_select', 'params' => array('{CONFIG_VALUE}'), 'explain' => false),
 						'default_dateformat'	=> array('lang' => 'DEFAULT_DATE_FORMAT',	'validate' => 'string',	'type' => 'custom', 'method' => 'dateformat_select', 'explain' => true),
 						'board_timezone'		=> array('lang' => 'SYSTEM_TIMEZONE',		'validate' => 'timezone',	'type' => 'custom', 'method' => 'timezone_select', 'explain' => true),
-
-						'legend2'				=> 'BOARD_STYLE',
-						'default_style'			=> array('lang' => 'DEFAULT_STYLE',			'validate' => 'int',	'type' => 'select', 'function' => 'style_select', 'params' => array('{CONFIG_VALUE}', false), 'explain' => true),
-						'guest_style'			=> array('lang' => 'GUEST_STYLE',			'validate' => 'int',	'type' => 'select', 'function' => 'style_select', 'params' => array($this->guest_style_get(), false), 'explain' => true),
+						'default_style'			=> array('lang' => 'DEFAULT_STYLE',			'validate' => 'int',	'type' => 'select', 'function' => 'style_select', 'params' => array('{CONFIG_VALUE}', false), 'explain' => false),
 						'override_user_style'	=> array('lang' => 'OVERRIDE_STYLE',		'validate' => 'bool',	'type' => 'radio:yes_no', 'explain' => true),
 
-						'legend3'				=> 'WARNINGS',
+						'legend2'				=> 'WARNINGS',
 						'warnings_expire_days'	=> array('lang' => 'WARNINGS_EXPIRE',		'validate' => 'int:0:9999',	'type' => 'number:0:9999', 'explain' => true, 'append' => ' ' . $user->lang['DAYS']),
 
-						'legend4'					=> 'ACP_SUBMIT_CHANGES',
+						'legend3'					=> 'ACP_SUBMIT_CHANGES',
 					)
 				);
 			break;
@@ -500,7 +497,7 @@ class acp_board
 		}
 
 		// We go through the display_vars to make sure no one is trying to set variables he/she is not allowed to...
-		foreach ($display_vars['vars'] as $config_name => $data)
+		foreach ($display_vars['vars'] as $config_name => $null)
 		{
 			if (!isset($cfg_array[$config_name]) || strpos($config_name, 'legend') !== false)
 			{
@@ -509,15 +506,6 @@ class acp_board
 
 			if ($config_name == 'auth_method' || $config_name == 'feed_news_id' || $config_name == 'feed_exclude_id')
 			{
-				continue;
-			}
-
-			if ($config_name == 'guest_style')
-			{
-				if (isset($cfg_array[$config_name]))
-				{
-					$this->guest_style_set($cfg_array[$config_name]);
-				}
 				continue;
 			}
 
@@ -532,13 +520,6 @@ class acp_board
 
 			if ($submit)
 			{
-				if (strpos($data['type'], 'password') === 0 && $config_value === '********')
-				{
-					// Do not update password fields if the content is ********,
-					// because that is the password replacement we use to not
-					// send the password to the output
-					continue;
-				}
 				set_config($config_name, $config_value);
 
 				if ($config_name == 'allow_quick_reply' && isset($_POST['allow_quick_reply_enable']))
@@ -567,7 +548,6 @@ class acp_board
 			$old_auth_config = array();
 			foreach ($auth_providers as $provider)
 			{
-				/** @var \phpbb\auth\provider\provider_interface $provider */
 				if ($fields = $provider->acp())
 				{
 					// Check if we need to create config fields for this plugin and save config when submit was pressed
@@ -580,14 +560,6 @@ class acp_board
 
 						if (!isset($cfg_array[$field]) || strpos($field, 'legend') !== false)
 						{
-							continue;
-						}
-
-						if (substr($field, -9) === '_password' && $cfg_array[$field] === '********')
-						{
-							// Do not update password fields if the content is ********,
-							// because that is the password replacement we use to not
-							// send the password to the output
 							continue;
 						}
 
@@ -632,15 +604,7 @@ class acp_board
 		{
 			add_log('admin', 'LOG_CONFIG_' . strtoupper($mode));
 
-			$message = $user->lang('CONFIG_UPDATED');
-			$message_type = E_USER_NOTICE;
-			if (!$config['email_enable'] && in_array($mode, array('email', 'registration')) &&
-				in_array($config['require_activation'], array(USER_ACTIVATION_SELF, USER_ACTIVATION_ADMIN)))
-			{
-				$message .= '<br /><br />' . $user->lang('ACC_ACTIVATION_WARNING');
-				$message_type = E_USER_WARNING;
-			}
-			trigger_error($message . adm_back_link($this->u_action), $message_type);
+			trigger_error($user->lang['CONFIG_UPDATED'] . adm_back_link($this->u_action));
 		}
 
 		$this->tpl_name = 'acp_board';
@@ -817,19 +781,20 @@ class acp_board
 		global $user, $config;
 
 		$act_ary = array(
-			'ACC_DISABLE'	=> array(true, USER_ACTIVATION_DISABLE),
-			'ACC_NONE'		=> array(true, USER_ACTIVATION_NONE),
-			'ACC_USER'		=> array($config['email_enable'], USER_ACTIVATION_SELF),
-			'ACC_ADMIN'		=> array($config['email_enable'], USER_ACTIVATION_ADMIN),
+			'ACC_DISABLE' => USER_ACTIVATION_DISABLE,
+			'ACC_NONE' => USER_ACTIVATION_NONE,
 		);
-
-		$act_options = '';
-		foreach ($act_ary as $key => $data)
+		if ($config['email_enable'])
 		{
-			list($available, $value) = $data;
+			$act_ary['ACC_USER'] = USER_ACTIVATION_SELF;
+			$act_ary['ACC_ADMIN'] = USER_ACTIVATION_ADMIN;
+		}
+		$act_options = '';
+
+		foreach ($act_ary as $key => $value)
+		{
 			$selected = ($selected_value == $value) ? ' selected="selected"' : '';
-			$class = (!$available) ? ' class="disabled-option"' : '';
-			$act_options .= '<option value="' . $value . '"' . $selected . $class . '>' . $user->lang($key) . '</option>';
+			$act_options .= '<option value="' . $value . '"' . $selected . '>' . $user->lang[$key] . '</option>';
 		}
 
 		return $act_options;
@@ -939,44 +904,12 @@ class acp_board
 	*/
 	function timezone_select($value, $key)
 	{
-		global $template, $user;
+		global $user;
 
-		$timezone_select = phpbb_timezone_select($template, $user, $value, true);
+		$timezone_select = phpbb_timezone_select($user, $value, true);
+		$timezone_select['tz_select'];
 
-		return '<select name="config[' . $key . ']" id="' . $key . '">' . $timezone_select . '</select>';
-	}
-
-	/**
-	* Get guest style
-	*/
-	public function guest_style_get()
-	{
-		global $db;
-
-		$sql = 'SELECT user_style
-			FROM ' . USERS_TABLE . '
-			WHERE user_id = ' . ANONYMOUS;
-		$result = $db->sql_query($sql);
-
-		$style = (int) $db->sql_fetchfield('user_style');
-		$db->sql_freeresult($result);
-
-		return $style;
-	}
-
-	/**
-	* Set guest style
-	*
-	* @param	int		$style_id	The style ID
-	*/
-	public function guest_style_set($style_id)
-	{
-		global $db;
-
-		$sql = 'UPDATE ' . USERS_TABLE . '
-			SET user_style = ' . (int) $style_id . '
-			WHERE user_id = ' . ANONYMOUS;
-		$db->sql_query($sql);
+		return '<select name="config[' . $key . ']" id="' . $key . '">' . $timezone_select['tz_select'] . '</select>';
 	}
 
 	/**
@@ -992,7 +925,7 @@ class acp_board
 		{
 			$user->timezone = new DateTimeZone($config['board_timezone']);
 		}
-		catch (\Exception $e)
+		catch (Exception $e)
 		{
 			// If the board timezone is invalid, we just use the users timezone.
 		}

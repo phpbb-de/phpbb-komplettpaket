@@ -162,6 +162,7 @@ class extension extends \Twig_Extension
 	* (e.g. in the ACP, L_TITLE)
 	* If not, we return the result of $user->lang()
 	*
+	* @param string $lang name
 	* @return string
 	*/
 	function lang()

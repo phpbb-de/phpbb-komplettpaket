@@ -30,7 +30,7 @@ class ucp_activate
 	function main($id, $mode)
 	{
 		global $config, $phpbb_root_path, $phpEx;
-		global $db, $user, $auth, $template, $phpbb_container, $phpbb_dispatcher;
+		global $db, $user, $auth, $template, $phpbb_container;
 
 		$user_id = request_var('u', 0);
 		$key = request_var('k', '');
@@ -111,7 +111,7 @@ class ucp_activate
 		if ($config['require_activation'] == USER_ACTIVATION_ADMIN && !$update_password)
 		{
 			$phpbb_notifications = $phpbb_container->get('notification_manager');
-			$phpbb_notifications->delete_notifications('notification.type.admin_activate_user', $user_row['user_id']);
+			$phpbb_notifications->delete_notifications('admin_activate_user', $user_row['user_id']);
 
 			include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
 
@@ -142,17 +142,6 @@ class ucp_activate
 				$message = 'PASSWORD_ACTIVATED';
 			}
 		}
-
-		/**
-		* This event can be used to modify data after user account's activation
-		*
-		* @event core.ucp_activate_after
-		* @var	array	user_row	Array with some user data
-		* @var	string	message		Language string of the message that will be displayed to the user
-		* @since 3.1.6-RC1
-		*/
-		$vars = array('user_row', 'message');
-		extract($phpbb_dispatcher->trigger_event('core.ucp_activate_after', compact($vars)));
 
 		meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
 		trigger_error($user->lang[$message]);

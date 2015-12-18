@@ -85,7 +85,7 @@ abstract class phpbb_notification_submit_post_base extends phpbb_database_test_c
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
 		// User
-		$user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
+		$user = $this->getMock('\phpbb\user');
 		$user->ip = '';
 		$user->data = array(
 			'user_id'		=> 2,
@@ -100,8 +100,7 @@ abstract class phpbb_notification_submit_post_base extends phpbb_database_test_c
 
 		// Container
 		$phpbb_container = new phpbb_mock_container_builder();
-		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$phpbb_container->set('content.visibility', new \phpbb\content_visibility($auth, $config, $phpbb_dispatcher, $db, $user, $phpbb_root_path, $phpEx, FORUMS_TABLE, POSTS_TABLE, TOPICS_TABLE, USERS_TABLE));
+		$phpbb_container->set('content.visibility', new \phpbb\content_visibility($auth, $db, $user, $phpbb_root_path, $phpEx, FORUMS_TABLE, POSTS_TABLE, TOPICS_TABLE, USERS_TABLE));
 
 		$user_loader = new \phpbb\user_loader($db, $phpbb_root_path, $phpEx, USERS_TABLE);
 
@@ -123,7 +122,7 @@ abstract class phpbb_notification_submit_post_base extends phpbb_database_test_c
 
 		// Notification Manager
 		$phpbb_notifications = new \phpbb\notification\manager($notification_types_array, array(),
-			$phpbb_container, $user_loader, $config, $phpbb_dispatcher, $db, $cache, $user,
+			$phpbb_container, $user_loader, $config, $db, $cache, $user,
 			$phpbb_root_path, $phpEx,
 			NOTIFICATION_TYPES_TABLE, NOTIFICATIONS_TABLE, USER_NOTIFICATIONS_TABLE);
 		$phpbb_container->set('notification_manager', $phpbb_notifications);

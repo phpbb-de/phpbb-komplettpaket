@@ -599,7 +599,7 @@ class install_convert extends module
 				'S_EXPLAIN'		=> $vars['explain'],
 				'S_LEGEND'		=> false,
 				'TITLE_EXPLAIN'	=> ($vars['explain']) ? $lang[$vars['lang'] . '_EXPLAIN'] : '',
-				'CONTENT'		=> $this->p_master->input_field($config_key, $vars['type'], ${$config_key}, $options),
+				'CONTENT'		=> $this->p_master->input_field($config_key, $vars['type'], $$config_key, $options),
 				)
 			);
 		}
@@ -619,7 +619,7 @@ class install_convert extends module
 	{
 		global $template, $user, $phpbb_root_path, $phpEx, $db, $lang, $config, $cache, $auth;
 		global $convert, $convert_row, $message_parser, $skip_rows, $language;
-		global $request, $phpbb_config_php_file, $phpbb_dispatcher;
+		global $request, $phpbb_config_php_file;
 
 		extract($phpbb_config_php_file->get_all());
 
@@ -796,7 +796,7 @@ class install_convert extends module
 		}
 
 		$error = false;
-		$convert->fulltext_search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
+		$convert->fulltext_search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
 
 		if ($error)
 		{
@@ -2014,7 +2014,7 @@ class install_convert extends module
 					{
 						$value = $fields[1][$firstkey];
 					}
-					else if (is_array($fields[2]) && !is_callable($fields[2]))
+					else if (is_array($fields[2]))
 					{
 						// Execute complex function/eval/typecast
 						$value = $fields[1];

@@ -173,22 +173,6 @@ switch ($mode)
 			'ORDER_BY'	=> 'u.username_clean ASC',
 		);
 
-		/**
-		 * Modify the query used to get the users for the team page
-		 *
-		 * @event core.memberlist_team_modify_query
-		 * @var array	sql_ary			Array containing the query
-		 * @var array	group_ids		Array of group ids
-		 * @var array	teampage_data	The teampage data
-		 * @since 3.1.3-RC1
-		 */
-		$vars = array(
-			'sql_ary',
-			'group_ids',
-			'teampage_data',
-		);
-		extract($phpbb_dispatcher->trigger_event('core.memberlist_team_modify_query', compact($vars)));
-
 		$result = $db->sql_query($db->sql_build_query('SELECT', $sql_ary));
 
 		$user_ary = $user_ids = $group_users = array();
@@ -299,20 +283,21 @@ switch ($mode)
 							continue;
 						}
 
-						$user_rank_data = phpbb_get_user_rank($row, (($row['user_id'] == ANONYMOUS) ? false : $row['user_posts']));
+						$rank_title = $rank_img = $rank_img_src = '';
+						get_user_rank($row['user_rank'], (($row['user_id'] == ANONYMOUS) ? false : $row['user_posts']), $rank_title, $rank_img, $rank_img_src);
 
-						$template_vars = array(
+						$template->assign_block_vars('group.user', array(
 							'USER_ID'		=> $row['user_id'],
 							'FORUMS'		=> $row['forums'],
 							'FORUM_OPTIONS'	=> (isset($row['forums_options'])) ? true : false,
-							'RANK_TITLE'	=> $user_rank_data['title'],
+							'RANK_TITLE'	=> $rank_title,
 
 							'GROUP_NAME'	=> $groups_ary[$row['default_group']]['group_name'],
 							'GROUP_COLOR'	=> $groups_ary[$row['default_group']]['group_colour'],
 							'U_GROUP'		=> $groups_ary[$row['default_group']]['u_group'],
 
-							'RANK_IMG'		=> $user_rank_data['img'],
-							'RANK_IMG_SRC'	=> $user_rank_data['img_src'],
+							'RANK_IMG'		=> $rank_img,
+							'RANK_IMG_SRC'	=> $rank_img_src,
 
 							'U_PM'			=> ($config['allow_privmsg'] && $auth->acl_get('u_sendpm') && ($row['user_allow_pm'] || $auth->acl_gets('a_', 'm_') || $auth->acl_getf_global('m_'))) ? append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=pm&amp;mode=compose&amp;u=' . $row['user_id']) : '',
 
@@ -320,25 +305,7 @@ switch ($mode)
 							'USERNAME'			=> get_username_string('username', $row['user_id'], $row['username'], $row['user_colour']),
 							'USER_COLOR'		=> get_username_string('colour', $row['user_id'], $row['username'], $row['user_colour']),
 							'U_VIEW_PROFILE'	=> get_username_string('profile', $row['user_id'], $row['username'], $row['user_colour']),
-						);
-
-						/**
-						 * Modify the template vars for displaying the user in the groups on the teampage
-						 *
-						 * @event core.memberlist_team_modify_template_vars
-						 * @var array	template_vars		Array containing the query
-						 * @var array	row					Array containing the action user row
-						 * @var array	groups_ary			Array of groups with all users that should be displayed
-						 * @since 3.1.3-RC1
-						 */
-						$vars = array(
-							'template_vars',
-							'row',
-							'groups_ary',
-						);
-						extract($phpbb_dispatcher->trigger_event('core.memberlist_team_modify_template_vars', compact($vars)));
-
-						$template->assign_block_vars('group.user', $template_vars);
+						));
 
 						if ($config['teampage_memberships'] != 2)
 						{
@@ -715,7 +682,6 @@ switch ($mode)
 			'U_MCP_QUEUE'			=> ($auth->acl_getf_global('m_approve')) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue', true, $user->session_id) : '',
 
 			'U_SWITCH_PERMISSIONS'	=> ($auth->acl_get('a_switchperm') && $user->data['user_id'] != $user_id) ? append_sid("{$phpbb_root_path}ucp.$phpEx", "mode=switch_perm&amp;u={$user_id}&amp;hash=" . generate_link_hash('switchperm')) : '',
-			'U_EDIT_SELF'			=> ($user_id == $user->data['user_id'] && $auth->acl_get('u_chgprofileinfo')) ? append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=ucp_profile&amp;mode=profile_info') : '',
 
 			'S_USER_NOTES'		=> ($user_notes_enabled) ? true : false,
 			'S_WARN_USER'		=> ($warn_user_enabled) ? true : false,
@@ -1114,18 +1080,14 @@ switch ($mode)
 			$avatar_img = phpbb_get_group_avatar($group_row);
 
 			// ... same for group rank
-			$user_rank_data = array(
-				'title'		=> null,
-				'img'		=> null,
-				'img_src'	=> null,
-			);
+			$rank_title = $rank_img = $rank_img_src = '';
 			if ($group_row['group_rank'])
 			{
-				$user_rank_data = phpbb_get_user_rank($group_row, false);
+				get_user_rank($group_row['group_rank'], false, $rank_title, $rank_img, $rank_img_src);
 
-				if ($user_rank_data['img'])
+				if ($rank_img)
 				{
-					$user_rank_data['img'] .= '<br />';
+					$rank_img .= '<br />';
 				}
 			}
 
@@ -1134,11 +1096,11 @@ switch ($mode)
 				'GROUP_NAME'	=> ($group_row['group_type'] == GROUP_SPECIAL) ? $user->lang['G_' . $group_row['group_name']] : $group_row['group_name'],
 				'GROUP_COLOR'	=> $group_row['group_colour'],
 				'GROUP_TYPE'	=> $user->lang['GROUP_IS_' . $group_row['l_group_type']],
-				'GROUP_RANK'	=> $user_rank_data['title'],
+				'GROUP_RANK'	=> $rank_title,
 
 				'AVATAR_IMG'	=> $avatar_img,
-				'RANK_IMG'		=> $user_rank_data['img'],
-				'RANK_IMG_SRC'	=> $user_rank_data['img_src'],
+				'RANK_IMG'		=> $rank_img,
+				'RANK_IMG_SRC'	=> $rank_img_src,
 
 				'U_PM'			=> ($auth->acl_get('u_sendpm') && $auth->acl_get('u_masspm_group') && $group_row['group_receive_pm'] && $config['allow_privmsg'] && $config['allow_mass_pm']) ? append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=pm&amp;mode=compose&amp;g=' . $group_id) : '',)
 			);
@@ -1461,7 +1423,7 @@ switch ($mode)
 					$cp_row = (isset($profile_fields_cache[$user_id])) ? $cp->generate_profile_fields_template_data($profile_fields_cache[$user_id], false) : array();
 				}
 
-				$memberrow = array_merge(phpbb_show_profile($row, false, false, false), array(
+				$memberrow = array_merge(phpbb_show_profile($row), array(
 					'ROW_NUMBER'		=> $i + ($start + 1),
 
 					'S_CUSTOM_PROFILE'	=> (isset($cp_row['row']) && sizeof($cp_row['row'])) ? true : false,

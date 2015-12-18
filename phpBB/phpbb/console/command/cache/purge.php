@@ -26,8 +26,11 @@ class purge extends \phpbb\console\command\command
 	/** @var \phpbb\auth\auth */
 	protected $auth;
 
-	/** @var \phpbb\log\log_interface */
+	/** @var \phpbb\log\log */
 	protected $log;
+
+	/** @var \phpbb\user */
+	protected $user;
 
 	/** @var \phpbb\config\config */
 	protected $config;
@@ -35,21 +38,22 @@ class purge extends \phpbb\console\command\command
 	/**
 	* Constructor
 	*
-	* @param \phpbb\user							$user	User instance
 	* @param \phpbb\cache\driver\driver_interface	$cache	Cache instance
 	* @param \phpbb\db\driver\driver_interface		$db		Database connection
 	* @param \phpbb\auth\auth						$auth	Auth instance
 	* @param \phpbb\log\log							$log	Logger instance
+	* @param \phpbb\user							$user	User instance
 	* @param \phpbb\config\config					$config	Config instance
 	*/
-	public function __construct(\phpbb\user $user, \phpbb\cache\driver\driver_interface $cache, \phpbb\db\driver\driver_interface $db, \phpbb\auth\auth $auth, \phpbb\log\log_interface $log, \phpbb\config\config $config)
+	public function __construct(\phpbb\cache\driver\driver_interface $cache, \phpbb\db\driver\driver_interface $db, \phpbb\auth\auth $auth, \phpbb\log\log $log, \phpbb\user $user, \phpbb\config\config $config)
 	{
 		$this->cache = $cache;
 		$this->db = $db;
 		$this->auth = $auth;
 		$this->log = $log;
+		$this->user = $user;
 		$this->config = $config;
-		parent::__construct($user);
+		parent::__construct();
 	}
 
 	/**
@@ -59,7 +63,7 @@ class purge extends \phpbb\console\command\command
 	{
 		$this
 			->setName('cache:purge')
-			->setDescription($this->user->lang('PURGE_CACHE'))
+			->setDescription('Purge the cache.')
 		;
 	}
 

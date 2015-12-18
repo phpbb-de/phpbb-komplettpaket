@@ -233,7 +233,6 @@ dd.option {
 	line-height: 1.48em;
 	width: 76%;
 	float: left;
-	position: relative;
 }
 
 .postbody .ignore {
@@ -250,8 +249,7 @@ dd.option {
 	float: left;
 	font-size: 1.5em;
 	padding: 2px 0 0 0;
-	margin-top: 0 !important;
-	margin-bottom: 0.3em !important;
+	margin: 0 0 0.3em 0 !important;
 	text-transform: none;
 	border: none;
 	font-family: "Trebuchet MS", Verdana, Helvetica, Arial, sans-serif;
@@ -259,13 +257,8 @@ dd.option {
 }
 
 .postbody h3 img {
+	/* Also see tweaks.css */
 	vertical-align: bottom;
-}
-
-.has-profile .postbody h3 {
-	/* If there is a post-profile, we position the post-buttons differently */
-	float: none !important;
-	margin-right: 180px;
 }
 
 .postbody .content {
@@ -275,9 +268,6 @@ dd.option {
 
 .postbody img.postimage {
 	max-width: 100%;
-	-webkit-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	box-sizing: border-box;
 }
 
 .search .postbody {
@@ -499,7 +489,7 @@ blockquote.uncited {
 	text-transform: uppercase;
 	border-bottom: 1px solid transparent;
 	margin-bottom: 3px;
-	font-size: 0.8em !important;
+	font-size: 0.8em;
 	font-weight: bold;
 	display: block;
 }
@@ -509,6 +499,7 @@ blockquote .codebox {
 }
 
 .codebox code {
+	/* Also see tweaks.css */
 	overflow: auto;
 	display: block;
 	height: auto;
@@ -691,6 +682,7 @@ fieldset.polls dd div {
 /* Poster profile block
 ----------------------------------------*/
 .postprofile {
+	/* Also see tweaks.css */
 	margin: 5px 0 10px 0;
 	min-height: 80px;
 	border: 1px solid transparent;
@@ -718,26 +710,15 @@ fieldset.polls dd div {
 	margin-bottom: 10px;
 }
 
-/* Post-profile avatars */
-.postprofile .has-avatar .avatar-container {
-	margin-bottom: 3px;
-	overflow: hidden;
-}
-
 .postprofile .avatar {
 	display: block;
-	float: left;
-	max-width: 100%;
+	border: none;
+	margin-bottom: 3px;
 }
 
 .postprofile .avatar img {
-	display: block;
+	max-width: 90%;
 	height: auto !important;
-	max-width: 100%;
-}
-
-.postprofile .profile-posts a {
-	font-weight: normal;
 }
 
 dd.profile-warnings {
@@ -769,11 +750,6 @@ dd.profile-contact {
 /* Poster profile used by search*/
 .search .postprofile {
 	width: 30%;
-}
-
-/* Profile used on view-profile */
-.profile-avatar img {
-	max-width: 100%;
 }
 
 /* pm list in compose message if mass pm is enabled */

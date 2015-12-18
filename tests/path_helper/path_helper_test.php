@@ -205,18 +205,6 @@ class phpbb_path_helper_test extends phpbb_test_case
 				array('test' => 'xyz', 'var' => 'value'),
 				'test=xyz&amp;var=value',
 			),
-			array(
-				array('test' => null),
-				'test',
-			),
-			array(
-				array('test' => null, 'var' => null),
-				'test&amp;var',
-			),
-			array(
-				array('test' => 'xyz', 'var' => null, 'bar' => 'value'),
-				'test=xyz&amp;var&amp;bar=value',
-			),
 		);
 	}
 
@@ -265,21 +253,6 @@ class phpbb_path_helper_test extends phpbb_test_case
 				'mcp.php?=4&amp;f=3',
 				true,
 				array('base' => 'mcp.php', 'params' => array('f' => '3')),
-			),
-			array(
-				'index.php?ready',
-				false,
-				array('base' => 'index.php', 'params' => array('ready' => null)),
-			),
-			array(
-				'index.php?i=1&amp;ready',
-				true,
-				array('base' => 'index.php', 'params' => array('i' => '1', 'ready' => null)),
-			),
-			array(
-				'index.php?ready&i=1',
-				false,
-				array('base' => 'index.php', 'params' => array('ready' => null, 'i' => '1')),
 			),
 		);
 	}
@@ -411,21 +384,6 @@ class phpbb_path_helper_test extends phpbb_test_case
 				'http://www.phpbb.com/community',
 				'../community/',
 			),
-			array(
-				'http://www.phpbb.com/foobar',
-				'http://www.phpbb.com',
-				'',
-			),
-			array(
-				'http://www.foobar.com',
-				'http://www.phpbb.com',
-				'/www.phpbb.com/',
-			),
-			array(
-				'foobar',
-				'http://www.phpbb.com/community',
-				'',
-			)
 		);
 	}
 
@@ -435,30 +393,5 @@ class phpbb_path_helper_test extends phpbb_test_case
 	public function test_get_web_root_path_from_ajax_referer($referer_url, $board_url, $expected)
 	{
 		$this->assertEquals($this->phpbb_root_path . $expected, $this->path_helper->get_web_root_path_from_ajax_referer($referer_url, $board_url));
-	}
-
-	public function data_get_valid_page()
-	{
-		return array(
-			// array( current page , mod_rewrite setting , expected output )
-			array('index', true, 'index'),
-			array('index', false, 'index'),
-			array('foo/index', true, 'foo/index'),
-			array('foo/index', false, 'foo/index'),
-			array('app.php/foo', true, 'foo'),
-			array('app.php/foo', false, 'app.php/foo'),
-			array('/../app.php/foo', true, '../foo'),
-			array('/../app.php/foo', false, '../app.php/foo'),
-			array('/../example/app.php/foo/bar', true, '../example/foo/bar'),
-			array('/../example/app.php/foo/bar', false, '../example/app.php/foo/bar'),
-		);
-	}
-
-	/**
-	 * @dataProvider data_get_valid_page
-	 */
-	public function test_get_valid_page($page, $mod_rewrite, $expected)
-	{
-		$this->assertEquals($this->phpbb_root_path . $expected, $this->path_helper->get_valid_page($page, $mod_rewrite));
 	}
 }

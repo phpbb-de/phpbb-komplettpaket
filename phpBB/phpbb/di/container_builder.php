@@ -15,7 +15,6 @@ namespace phpbb\di;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
-use Symfony\Component\HttpKernel\DependencyInjection\RegisterListenersPass;
 
 class container_builder
 {
@@ -161,13 +160,11 @@ class container_builder
 
 			if ($this->use_custom_pass)
 			{
-				// Symfony Kernel Listeners
 				$this->container->addCompilerPass(new \phpbb\di\pass\collection_pass());
-				$this->container->addCompilerPass(new RegisterListenersPass('dispatcher', 'event.listener_listener', 'event.listener'));
 
 				if ($this->use_kernel_pass)
 				{
-					$this->container->addCompilerPass(new RegisterListenersPass('dispatcher'));
+					$this->container->addCompilerPass(new \phpbb\di\pass\kernel_pass());
 				}
 			}
 
@@ -178,7 +175,7 @@ class container_builder
 				$this->container->compile();
 			}
 
-			if ($this->dump_container && !defined('DEBUG_CONTAINER'))
+			if ($this->dump_container && !defined('DEBUG'))
 			{
 				$this->dump_container($container_filename);
 			}
@@ -399,6 +396,7 @@ class container_builder
 	*/
 	protected function get_container_filename()
 	{
-		return $this->phpbb_root_path . 'cache/container_' . md5($this->phpbb_root_path) . '.' . $this->php_ext;
+		$filename = str_replace(array('/', '.'), array('slash', 'dot'), $this->phpbb_root_path);
+		return $this->phpbb_root_path . 'cache/container_' . $filename . '.' . $this->php_ext;
 	}
 }

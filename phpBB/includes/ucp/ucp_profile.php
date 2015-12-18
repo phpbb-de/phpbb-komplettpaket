@@ -32,7 +32,7 @@ class ucp_profile
 	function main($id, $mode)
 	{
 		global $cache, $config, $db, $user, $auth, $template, $phpbb_root_path, $phpEx;
-		global $request, $phpbb_container, $phpbb_dispatcher;
+		global $request, $phpbb_container;
 
 		$user->add_lang('posting');
 
@@ -53,17 +53,6 @@ class ucp_profile
 					'cur_password'		=> $request->variable('cur_password', '', true),
 					'password_confirm'	=> $request->variable('password_confirm', '', true),
 				);
-
-				/**
-				* Modify user registration data on editing account settings in UCP
-				*
-				* @event core.ucp_profile_reg_details_data
-				* @var	array	data		Array with current or updated user registration data
-				* @var	bool	submit		Flag indicating if submit button has been pressed
-				* @since 3.1.4-RC1
-				*/
-				$vars = array('data', 'submit');
-				extract($phpbb_dispatcher->trigger_event('core.ucp_profile_reg_details_data', compact($vars)));
 
 				add_form_key('ucp_reg_details');
 
@@ -113,18 +102,6 @@ class ucp_profile
 					{
 						$error[] = 'FORM_INVALID';
 					}
-
-					/**
-					* Validate user data on editing registration data in UCP
-					*
-					* @event core.ucp_profile_reg_details_validate
-					* @var	array	data			Array with user profile data
-					* @var	bool	submit			Flag indicating if submit button has been pressed
-					* @var array	error			Array of any generated errors
-					* @since 3.1.4-RC1
-					*/
-					$vars = array('data', 'submit', 'error');
-					extract($phpbb_dispatcher->trigger_event('core.ucp_profile_reg_details_validate', compact($vars)));
 
 					if (!sizeof($error))
 					{
@@ -223,17 +200,6 @@ class ucp_profile
 							$sql_ary['user_newpasswd'] = '';
 						}
 
-						/**
-						* Modify user registration data before submitting it to the database
-						*
-						* @event core.ucp_profile_reg_details_sql_ary
-						* @var	array	data		Array with current or updated user registration data
-						* @var	array	sql_ary		Array with user registration data to submit to the database
-						* @since 3.1.4-RC1
-						*/
-						$vars = array('data', 'sql_ary');
-						extract($phpbb_dispatcher->trigger_event('core.ucp_profile_reg_details_sql_ary', compact($vars)));
-
 						if (sizeof($sql_ary))
 						{
 							$sql = 'UPDATE ' . USERS_TABLE . '
@@ -319,17 +285,6 @@ class ucp_profile
 					$data['user_birthday'] = sprintf('%2d-%2d-%4d', $data['bday_day'], $data['bday_month'], $data['bday_year']);
 				}
 
-				/**
-				* Modify user data on editing profile in UCP
-				*
-				* @event core.ucp_profile_modify_profile_info
-				* @var	array	data		Array with user profile data
-				* @var	bool	submit		Flag indicating if submit button has been pressed
-				* @since 3.1.4-RC1
-				*/
-				$vars = array('data', 'submit');
-				extract($phpbb_dispatcher->trigger_event('core.ucp_profile_modify_profile_info', compact($vars)));
-
 				add_form_key('ucp_profile_info');
 
 				if ($submit)
@@ -365,18 +320,6 @@ class ucp_profile
 						$error[] = 'FORM_INVALID';
 					}
 
-					/**
-					* Validate user data on editing profile in UCP
-					*
-					* @event core.ucp_profile_validate_profile_info
-					* @var	array	data			Array with user profile data
-					* @var	bool	submit			Flag indicating if submit button has been pressed
-					* @var array	error			Array of any generated errors
-					* @since 3.1.4-RC1
-					*/
-					$vars = array('data', 'submit', 'error');
-					extract($phpbb_dispatcher->trigger_event('core.ucp_profile_validate_profile_info', compact($vars)));
-
 					if (!sizeof($error))
 					{
 						$data['notify'] = $user->data['user_notify_type'];
@@ -397,18 +340,6 @@ class ucp_profile
 						{
 							$sql_ary['user_birthday'] = $data['user_birthday'];
 						}
-
-						/**
-						* Modify profile data in UCP before submitting to the database
-						*
-						* @event core.ucp_profile_info_modify_sql_ary
-						* @var	array	cp_data		Array with the user custom profile fields data
-						* @var	array	data		Array with user profile data
-						* @var  array	sql_ary		user options data we update
-						* @since 3.1.4-RC1
-						*/
-						$vars = array('cp_data', 'data', 'sql_ary');
-						extract($phpbb_dispatcher->trigger_event('core.ucp_profile_info_modify_sql_ary', compact($vars)));
 
 						$sql = 'UPDATE ' . USERS_TABLE . '
 							SET ' . $db->sql_build_array('UPDATE', $sql_ary) . '
@@ -633,31 +564,34 @@ class ucp_profile
 									trigger_error($message);
 								}
 							}
+							else
+							{
+								if ($driver = $phpbb_avatar_manager->get_driver($avatar_data['avatar_type']))
+								{
+									$driver->delete($avatar_data);
+								}
+
+								$result = array(
+									'user_avatar' => '',
+									'user_avatar_type' => '',
+									'user_avatar_width' => 0,
+									'user_avatar_height' => 0,
+								);
+
+								$sql = 'UPDATE ' . USERS_TABLE . '
+									SET ' . $db->sql_build_array('UPDATE', $result) . '
+									WHERE user_id = ' . (int) $user->data['user_id'];
+
+								$db->sql_query($sql);
+
+								meta_refresh(3, $this->u_action);
+								$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+								trigger_error($message);
+							}
 						}
 						else
 						{
 							$error[] = 'FORM_INVALID';
-						}
-					}
-
-					// Handle deletion of avatars
-					if ($request->is_set_post('avatar_delete'))
-					{
-						if (!confirm_box(true))
-						{
-							confirm_box(false, $user->lang('CONFIRM_AVATAR_DELETE'), build_hidden_fields(array(
-									'avatar_delete'     => true,
-									'i'                 => $id,
-									'mode'              => $mode))
-							);
-						}
-						else
-						{
-							$phpbb_avatar_manager->handle_avatar_delete($db, $user, $avatar_data, USERS_TABLE, 'user_');
-
-							meta_refresh(3, $this->u_action);
-							$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
-							trigger_error($message);
 						}
 					}
 
@@ -724,14 +658,9 @@ class ucp_profile
 					{
 						if (!empty($keys))
 						{
-							foreach ($keys as $key => $id)
-							{
-								$keys[$key] = $db->sql_like_expression($id . $db->get_any_char());
-							}
-							$sql_where = '(key_id ' . implode(' OR key_id ', $keys) . ')';
 							$sql = 'DELETE FROM ' . SESSIONS_KEYS_TABLE . '
 								WHERE user_id = ' . (int) $user->data['user_id'] . '
-								AND ' . $sql_where ;
+								AND ' . $db->sql_in_set('key_id', $keys) ;
 
 							$db->sql_query($sql);
 
@@ -755,7 +684,7 @@ class ucp_profile
 				while ($row = $db->sql_fetchrow($result))
 				{
 					$template->assign_block_vars('sessions', array(
-						'KEY' => substr($row['key_id'], 0, 8),
+						'KEY' => $row['key_id'],
 						'IP' => $row['last_ip'],
 						'LOGIN_TIME' => $user->format_date($row['last_login']),
 					));

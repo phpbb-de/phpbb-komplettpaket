@@ -16,7 +16,6 @@ use Symfony\Component\Console\Tester\CommandTester;
 use phpbb\console\command\cron\run;
 
 require_once dirname(__FILE__) . '/tasks/simple.php';
-require_once dirname(__FILE__) . '/../../../phpBB/includes/functions.php';
 
 class phpbb_console_command_cron_run_test extends phpbb_database_test_case
 {
@@ -42,7 +41,7 @@ class phpbb_console_command_cron_run_test extends phpbb_database_test_case
 		set_config(null, null, null, $this->config);
 		$this->lock = new \phpbb\lock\db('cron_lock', $this->config, $this->db);
 
-		$this->user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
+		$this->user = $this->getMock('\phpbb\user');
 		$this->user->method('lang')->will($this->returnArgument(0));
 
 		$this->task = new phpbb_cron_task_simple();
@@ -149,7 +148,7 @@ class phpbb_console_command_cron_run_test extends phpbb_database_test_case
 	public function get_command_tester()
 	{
 		$application = new Application();
-		$application->add(new run($this->user, $this->cron_manager, $this->lock));
+		$application->add(new run($this->cron_manager, $this->lock, $this->user));
 
 		$command = $application->find('cron:run');
 		$this->command_name = $command->getName();

@@ -45,7 +45,7 @@ class ucp_pm
 
 	function main($id, $mode)
 	{
-		global $user, $template, $phpbb_root_path, $auth, $phpEx, $db, $config, $request;
+		global $user, $template, $phpbb_root_path, $auth, $phpEx, $db, $config;
 
 		if (!$user->data['is_registered'])
 		{
@@ -246,27 +246,6 @@ class ucp_pm
 					$folder_id = (int) $row['folder_id'];
 				}
 
-				if ($request->variable('mark', '') == 'all' && check_link_hash($request->variable('token', ''), 'mark_all_pms_read'))
-				{
-					mark_folder_read($user->data['user_id'], $folder_id);
-
-					meta_refresh(3, $this->u_action);
-					$message = $user->lang['PM_MARK_ALL_READ_SUCCESS'];
-
-					if ($request->is_ajax())
-					{
-						$json_response = new \phpbb\json_response();
-						$json_response->send(array(
-							'MESSAGE_TITLE'	=> $user->lang['INFORMATION'],
-							'MESSAGE_TEXT'	=> $message,
-							'success'		=> true,
-						));
-					}
-					$message .= '<br /><br />' . $user->lang('RETURN_UCP', '<a href="' . $this->u_action . '">', '</a>');
-
-					trigger_error($message);
-				}
-
 				$message_row = array();
 				if ($action == 'view_message' && $msg_id)
 				{
@@ -353,7 +332,6 @@ class ucp_pm
 					'U_SENTBOX'				=> $this->u_action . '&amp;folder=sentbox',
 					'U_CREATE_FOLDER'		=> $this->u_action . '&amp;mode=options',
 					'U_CURRENT_FOLDER'		=> $this->u_action . '&amp;folder=' . $folder_id,
-					'U_MARK_ALL'			=> $this->u_action . '&amp;folder=' . $folder_id . '&amp;mark=all&amp;token=' . generate_link_hash('mark_all_pms_read'),
 
 					'S_IN_INBOX'			=> ($folder_id == PRIVMSGS_INBOX) ? true : false,
 					'S_IN_OUTBOX'			=> ($folder_id == PRIVMSGS_OUTBOX) ? true : false,

@@ -11,12 +11,12 @@
 *
 */
 
-require_once dirname(__FILE__) . '/common_avatar_test_case.php';
+require_once dirname(__FILE__) . '/common_avatar_test.php';
 
 /**
  * @group functional
  */
-class phpbb_functional_avatar_acp_groups_test extends phpbb_functional_common_avatar_test_case
+class phpbb_functional_avatar_acp_groups_test extends phpbb_functional_common_avatar_test
 {
 	public function get_url()
 	{
@@ -48,7 +48,7 @@ class phpbb_functional_avatar_acp_groups_test extends phpbb_functional_common_av
 			),
 			// Delete avatar image to reset group settings
 			array(
-				array('CONFIRM_AVATAR_DELETE', 'GROUP_UPDATED'),
+				'GROUP_UPDATED',
 				'avatar_driver_gravatar',
 				array(
 					'avatar_delete'	=> array('tick', ''),

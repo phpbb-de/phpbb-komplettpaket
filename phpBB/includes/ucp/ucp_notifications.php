@@ -52,27 +52,27 @@ class ucp_notifications
 
 					$notification_methods = $phpbb_notifications->get_subscription_methods();
 
-					foreach ($phpbb_notifications->get_subscription_types() as $group => $subscription_types)
+					foreach($phpbb_notifications->get_subscription_types() as $group => $subscription_types)
 					{
-						foreach ($subscription_types as $type => $data)
+						foreach($subscription_types as $type => $data)
 						{
-							foreach ($notification_methods as $method => $method_data)
+							foreach($notification_methods as $method => $method_data)
 							{
-								if ($request->is_set_post(str_replace('.', '_', $type . '_' . $method_data['id'])) && (!isset($subscriptions[$type]) || !in_array($method_data['id'], $subscriptions[$type])))
+								if ($request->is_set_post($type . '_' . $method_data['id']) && (!isset($subscriptions[$type]) || !in_array($method_data['id'], $subscriptions[$type])))
 								{
 									$phpbb_notifications->add_subscription($type, 0, $method_data['id']);
 								}
-								else if (!$request->is_set_post(str_replace('.', '_', $type . '_' . $method_data['id'])) && isset($subscriptions[$type]) && in_array($method_data['id'], $subscriptions[$type]))
+								else if (!$request->is_set_post($type . '_' . $method_data['id']) && isset($subscriptions[$type]) && in_array($method_data['id'], $subscriptions[$type]))
 								{
 									$phpbb_notifications->delete_subscription($type, 0, $method_data['id']);
 								}
 							}
 
-							if ($request->is_set_post(str_replace('.', '_', $type) . '_notification') && !isset($subscriptions[$type]))
+							if ($request->is_set_post($type . '_notification') && !isset($subscriptions[$type]))
 							{
 								$phpbb_notifications->add_subscription($type);
 							}
-							else if (!$request->is_set_post(str_replace('.', '_', $type) . '_notification') && isset($subscriptions[$type]))
+							else if (!$request->is_set_post($type . '_notification') && isset($subscriptions[$type]))
 							{
 								$phpbb_notifications->delete_subscription($type);
 							}
@@ -95,25 +95,35 @@ class ucp_notifications
 			case 'notification_list':
 			default:
 				// Mark all items read
-				if ($request->variable('mark', '') == 'all' && check_link_hash($request->variable('token', ''), 'mark_all_notifications_read'))
+				if ($request->variable('mark', '') == 'all' && (confirm_box(true) || check_link_hash($request->variable('token', ''), 'mark_all_notifications_read')))
 				{
-					$phpbb_notifications->mark_notifications_read(false, false, $user->data['user_id'], $form_time);
-
-					meta_refresh(3, $this->u_action);
-					$message = $user->lang['NOTIFICATIONS_MARK_ALL_READ_SUCCESS'];
-
-					if ($request->is_ajax())
+					if (confirm_box(true))
 					{
-						$json_response = new \phpbb\json_response();
-						$json_response->send(array(
-							'MESSAGE_TITLE'	=> $user->lang['INFORMATION'],
-							'MESSAGE_TEXT'	=> $message,
-							'success'		=> true,
-						));
-					}
-					$message .= '<br /><br />' . $user->lang('RETURN_UCP', '<a href="' . $this->u_action . '">', '</a>');
+						$phpbb_notifications->mark_notifications_read(false, false, $user->data['user_id'], $form_time);
 
-					trigger_error($message);
+						meta_refresh(3, $this->u_action);
+						$message = $user->lang['NOTIFICATIONS_MARK_ALL_READ_SUCCESS'];
+
+						if ($request->is_ajax())
+						{
+							$json_response = new \phpbb\json_response();
+							$json_response->send(array(
+								'MESSAGE_TITLE'	=> $user->lang['INFORMATION'],
+								'MESSAGE_TEXT'	=> $message,
+								'success'		=> true,
+							));
+						}
+						$message .= '<br /><br />' . $user->lang('RETURN_UCP', '<a href="' . $this->u_action . '">', '</a>');
+
+						trigger_error($message);
+					}
+					else
+					{
+						confirm_box(false, 'NOTIFICATIONS_MARK_ALL_READ', build_hidden_fields(array(
+							'mark'		=> 'all',
+							'form_time'	=> $form_time,
+						)));
+					}
 				}
 
 				// Mark specific notifications read
@@ -180,13 +190,13 @@ class ucp_notifications
 	{
 		$notification_methods = $phpbb_notifications->get_subscription_methods();
 
-		foreach ($phpbb_notifications->get_subscription_types() as $group => $subscription_types)
+		foreach($phpbb_notifications->get_subscription_types() as $group => $subscription_types)
 		{
 			$template->assign_block_vars($block, array(
 				'GROUP_NAME'	=> $user->lang($group),
 			));
 
-			foreach ($subscription_types as $type => $data)
+			foreach($subscription_types as $type => $data)
 			{
 				$template->assign_block_vars($block, array(
 					'TYPE'				=> $type,
@@ -197,7 +207,7 @@ class ucp_notifications
 					'SUBSCRIBED'		=> (isset($subscriptions[$type])) ? true : false,
 				));
 
-				foreach ($notification_methods as $method => $method_data)
+				foreach($notification_methods as $method => $method_data)
 				{
 					$template->assign_block_vars($block . '.notification_methods', array(
 						'METHOD'			=> $method_data['id'],
@@ -227,7 +237,7 @@ class ucp_notifications
 	{
 		$notification_methods = $phpbb_notifications->get_subscription_methods();
 
-		foreach ($notification_methods as $method => $method_data)
+		foreach($notification_methods as $method => $method_data)
 		{
 			$template->assign_block_vars($block, array(
 				'METHOD'			=> $method_data['id'],

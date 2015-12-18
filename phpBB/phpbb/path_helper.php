@@ -46,7 +46,7 @@ class path_helper
 	* @param \phpbb\filesystem $filesystem
 	* @param \phpbb\request\request_interface $request
 	* @param string $phpbb_root_path Relative path to phpBB root
-	* @param string $php_ext PHP file extension
+	* @param string $php_ext PHP extension (php)
 	* @param mixed $adm_relative_path Relative path admin path to adm/ root
 	*/
 	public function __construct(\phpbb\symfony_request $symfony_request, \phpbb\filesystem $filesystem, \phpbb\request\request_interface $request, $phpbb_root_path, $php_ext, $adm_relative_path = null)
@@ -154,7 +154,6 @@ class path_helper
 			return $this->web_root_path;
 		}
 
-		// We do not need to escape $path_info, $request_uri and $script_name because we can not find their content in the result.
 		// Path info (e.g. /foo/bar)
 		$path_info = $this->filesystem->clean_path($this->symfony_request->getPathInfo());
 
@@ -204,12 +203,9 @@ class path_helper
 		*/
 		if ($this->request->is_ajax() && $this->symfony_request->get('_referer'))
 		{
-			// We need to escape $absolute_board_url because it can be partially concatenated to the result.
-			$absolute_board_url = $this->request->escape($this->symfony_request->getSchemeAndHttpHost() . $this->symfony_request->getBasePath(), true);
-
 			$referer_web_root_path = $this->get_web_root_path_from_ajax_referer(
 				$this->symfony_request->get('_referer'),
-				$absolute_board_url
+				$this->symfony_request->getSchemeAndHttpHost() . $this->symfony_request->getBasePath()
 			);
 			return $this->web_root_path = $this->phpbb_root_path . $referer_web_root_path;
 		}
@@ -282,16 +278,10 @@ class path_helper
 			$referer_dir = dirname($referer_dir);
 		}
 
-		while (($dir_position = strpos($absolute_board_url, $referer_dir)) !== 0)
+		while (strpos($absolute_board_url, $referer_dir) !== 0)
 		{
 			$fixed_root_path .= '../';
 			$referer_dir = dirname($referer_dir);
-
-			// Just return phpbb_root_path if we reach the top directory
-			if ($referer_dir === '.')
-			{
-				return $this->phpbb_root_path;
-			}
 		}
 
 		$fixed_root_path .= substr($absolute_board_url, strlen($referer_dir) + 1);
@@ -326,7 +316,7 @@ class path_helper
 	* Glue URL parameters together
 	*
 	* @param array $params URL parameters in the form of array(name => value)
-	* @return string Returns the glued string, e.g. name1=value1&amp;name2&amp;name3=value3
+	* @return string Returns the glued string, e.g. name1=value1&amp;name2=value2
 	*/
 	public function glue_url_params($params)
 	{
@@ -334,15 +324,7 @@ class path_helper
 
 		foreach ($params as $key => $value)
 		{
-			// some parameters do not have value
-			if ($value !== null)
-			{
-				$_params[] = $key . '=' . $value;
-			}
-			else
-			{
-				$_params[] = $key;
-			}
+			$_params[] = $key . '=' . $value;
 		}
 		return implode('&amp;', $_params);
 	}
@@ -371,17 +353,7 @@ class path_helper
 				{
 					continue;
 				}
-
-				// some parameters don't have value
-				if (strpos($argument, '=') !== false)
-				{
-					list($key, $value) = explode('=', $argument, 2);
-				}
-				else
-				{
-					$key = $argument;
-					$value = null;
-				}
+				list($key, $value) = explode('=', $argument, 2);
 
 				if ($key === '')
 				{
@@ -454,39 +426,5 @@ class path_helper
 		}
 
 		return $url_parts['base'] . (($params) ? '?' . $this->glue_url_params($params) : '');
-	}
-
-	/**
-	 * Get a valid page
-	 *
-	 * @param string $page The page to verify
-	 * @param bool $mod_rewrite Whether mod_rewrite is enabled, default: false
-	 *
-	 * @return string A valid page based on given page and mod_rewrite
-	 */
-	public function get_valid_page($page, $mod_rewrite = false)
-	{
-		// We need to be cautious here.
-		// On some situations, the redirect path is an absolute URL, sometimes a relative path
-		// For a relative path, let's prefix it with $phpbb_root_path to point to the correct location,
-		// else we use the URL directly.
-		$url_parts = parse_url($page);
-
-		// URL
-		if ($url_parts === false || empty($url_parts['scheme']) || empty($url_parts['host']))
-		{
-			// Remove 'app.php/' from the page, when rewrite is enabled.
-			// Treat app.php as a reserved file name and remove on mod rewrite
-			// even if it might not be in the phpBB root.
-			if ($mod_rewrite && ($app_position = strpos($page, 'app.' . $this->php_ext . '/')) !== false)
-			{
-				$page = substr($page, 0, $app_position) . substr($page, $app_position + strlen('app.' . $this->php_ext . '/'));
-			}
-
-			// Remove preceding slashes from page name and prepend root path
-			$page = $this->get_phpbb_root_path() . ltrim($page, '/\\');
-		}
-
-		return $page;
 	}
 }

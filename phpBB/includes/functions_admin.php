@@ -27,6 +27,8 @@ if (!defined('IN_PHPBB'))
 * @param string	$table	constant or fullname of the table
 * @param int	$parent_id parent_id of the current set (default = 0)
 * @param array	$where	contains strings to compare closer on the where statement (additional)
+*
+* @author EXreaction
 */
 function recalc_nested_sets(&$new_id, $pkey, $table, $parent_id = 0, $where = array())
 {
@@ -313,6 +315,8 @@ function get_forum_branch($forum_id, $type = 'all', $order = 'descending', $incl
 * @param bool	$add_log			True if log entry should be added
 *
 * @return bool						False on error
+*
+* @author bantu
 */
 function copy_forum_permissions($src_forum_id, $dest_forum_ids, $clear_dest_perms = true, $add_log = true)
 {
@@ -500,7 +504,7 @@ function filelist($rootdir, $dir = '', $type = 'gif|jpg|jpeg|png')
 */
 function move_topics($topic_ids, $forum_id, $auto_sync = true)
 {
-	global $db, $phpbb_dispatcher;
+	global $db;
 
 	if (empty($topic_ids))
 	{
@@ -534,27 +538,6 @@ function move_topics($topic_ids, $forum_id, $auto_sync = true)
 	}
 
 	$table_ary = array(TOPICS_TABLE, POSTS_TABLE, LOG_TABLE, DRAFTS_TABLE, TOPICS_TRACK_TABLE);
-
-	/**
-	 * Perform additional actions before topics move
-	 *
-	 * @event core.move_topics_before_query
-	 * @var	array	table_ary	Array of tables from which forum_id will be updated for all rows that hold the moved topics
-	 * @var	array	topic_ids	Array of the moved topic ids
-	 * @var	string	forum_id	The forum id from where the topics are moved
-	 * @var	array	forum_ids	Array of the forums where the topics are moving (includes also forum_id)
-	 * @var bool	auto_sync	Whether or not to perform auto sync
-	 * @since 3.1.5-RC1
-	 */
-	$vars = array(
-			'table_ary',
-			'topic_ids',
-			'forum_id',
-			'forum_ids',
-			'auto_sync',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.move_topics_before_query', compact($vars)));
-
 	foreach ($table_ary as $table)
 	{
 		$sql = "UPDATE $table
@@ -639,7 +622,7 @@ function move_posts($post_ids, $topic_id, $auto_sync = true)
 */
 function delete_topics($where_type, $where_ids, $auto_sync = true, $post_count_sync = true, $call_delete_posts = true)
 {
-	global $db, $config, $phpbb_container, $phpbb_dispatcher;
+	global $db, $config, $phpbb_container;
 
 	$approved_topics = 0;
 	$forum_ids = $topic_ids = array();
@@ -693,20 +676,6 @@ function delete_topics($where_type, $where_ids, $auto_sync = true, $post_count_s
 
 	$table_ary = array(BOOKMARKS_TABLE, TOPICS_TRACK_TABLE, TOPICS_POSTED_TABLE, POLL_VOTES_TABLE, POLL_OPTIONS_TABLE, TOPICS_WATCH_TABLE, TOPICS_TABLE);
 
-	/**
-	 * Perform additional actions before topic(s) deletion
-	 *
-	 * @event core.delete_topics_before_query
-	 * @var	array	table_ary	Array of tables from which all rows will be deleted that hold a topic_id occuring in topic_ids
-	 * @var	array	topic_ids	Array of topic ids to delete
-	 * @since 3.1.4-RC1
-	 */
-	$vars = array(
-			'table_ary',
-			'topic_ids',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.delete_topics_before_query', compact($vars)));
-
 	foreach ($table_ary as $table)
 	{
 		$sql = "DELETE FROM $table
@@ -714,18 +683,6 @@ function delete_topics($where_type, $where_ids, $auto_sync = true, $post_count_s
 		$db->sql_query($sql);
 	}
 	unset($table_ary);
-
-	/**
-	 * Perform additional actions after topic(s) deletion
-	 *
-	 * @event core.delete_topics_after_query
-	 * @var	array	topic_ids	Array of topic ids that were deleted
-	 * @since 3.1.4-RC1
-	 */
-	$vars = array(
-			'topic_ids',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.delete_topics_after_query', compact($vars)));
 
 	$moved_topic_ids = array();
 
@@ -765,9 +722,9 @@ function delete_topics($where_type, $where_ids, $auto_sync = true, $post_count_s
 	$phpbb_notifications = $phpbb_container->get('notification_manager');
 
 	$phpbb_notifications->delete_notifications(array(
-		'notification.type.topic',
-		'notification.type.approve_topic',
-		'notification.type.topic_in_queue',
+		'topic',
+		'approve_topic',
+		'topic_in_queue',
 	), $topic_ids);
 
 	return $return;
@@ -782,9 +739,9 @@ function delete_posts($where_type, $where_ids, $auto_sync = true, $posted_sync =
 
 	// Notifications types to delete
 	$delete_notifications_types = array(
-		'notification.type.quote',
-		'notification.type.approve_post',
-		'notification.type.post_in_queue',
+		'quote',
+		'approve_post',
+		'post_in_queue',
 	);
 
 	/**
@@ -941,7 +898,7 @@ function delete_posts($where_type, $where_ids, $auto_sync = true, $posted_sync =
 	}
 
 	$error = false;
-	$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
+	$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
 
 	if ($error)
 	{
@@ -1267,6 +1224,8 @@ function delete_attachments($mode, $ids, $resync = true)
 * @param bool		$auto_sync		Will call sync() if this is true
 *
 * @return array		Array with affected forums
+*
+* @author bantu
 */
 function delete_topic_shadows($forum_id, $sql_more = '', $auto_sync = true)
 {
@@ -2358,7 +2317,7 @@ function sync($mode, $where_type = '', $where_ids = '', $resync_parents = false,
 */
 function prune($forum_id, $prune_mode, $prune_date, $prune_flags = 0, $auto_sync = true)
 {
-	global $db, $phpbb_dispatcher;
+	global $db;
 
 	if (!is_array($forum_id))
 	{
@@ -2397,21 +2356,6 @@ function prune($forum_id, $prune_mode, $prune_date, $prune_flags = 0, $auto_sync
 	{
 		$sql_and .= ' AND topic_status = ' . ITEM_MOVED . " AND topic_last_post_time < $prune_date";
 	}
-
-	/**
-	* Use this event to modify the SQL that selects topics to be pruned
-	*
-	* @event core.prune_sql
-	* @var string	forum_id		The forum id
-	* @var string	prune_mode		The prune mode
-	* @var string	prune_date		The prune date
-	* @var int		prune_flags		The prune flags
-	* @var bool		auto_sync		Whether or not to perform auto sync
-	* @var string	sql_and			SQL text appended to where clause
-	* @since 3.1.3-RC1
-	*/
-	$vars = array('forum_id', 'prune_mode', 'prune_date', 'prune_flags', 'auto_sync', 'sql_and');
-	extract($phpbb_dispatcher->trigger_event('core.prune_sql', compact($vars)));
 
 	$sql = 'SELECT topic_id
 		FROM ' . TOPICS_TABLE . '
@@ -2574,7 +2518,6 @@ function phpbb_cache_moderators($db, $cache, $auth)
 			{
 				$usernames_ary[$row['user_id']] = $row['username'];
 			}
-			$db->sql_freeresult($result);
 
 			foreach ($hold_ary as $user_id => $forum_id_ary)
 			{
@@ -2869,7 +2812,6 @@ function view_inactive_users(&$users, &$user_count, $limit = 0, $offset = 0, $li
 
 		$users[] = $row;
 	}
-	$db->sql_freeresult($result);
 
 	return $offset;
 }
@@ -3044,21 +2986,68 @@ function get_database_size()
 
 /**
 * Retrieve contents from remotely stored file
-*
-* @deprecated	3.1.2	Use file_downloader instead
 */
 function get_remote_file($host, $directory, $filename, &$errstr, &$errno, $port = 80, $timeout = 6)
 {
-	global $phpbb_container;
+	global $user;
 
-	// Get file downloader and assign $errstr and $errno
-	$file_downloader = $phpbb_container->get('file_downloader');
+	if ($fsock = @fsockopen($host, $port, $errno, $errstr, $timeout))
+	{
+		@fputs($fsock, "GET $directory/$filename HTTP/1.0\r\n");
+		@fputs($fsock, "HOST: $host\r\n");
+		@fputs($fsock, "Connection: close\r\n\r\n");
 
-	$file_data = $file_downloader->get($host, $directory, $filename, $port, $timeout);
-	$errstr = $file_downloader->get_error_string();
-	$errno = $file_downloader->get_error_number();
+		$timer_stop = time() + $timeout;
+		stream_set_timeout($fsock, $timeout);
 
-	return $file_data;
+		$file_info = '';
+		$get_info = false;
+
+		while (!@feof($fsock))
+		{
+			if ($get_info)
+			{
+				$file_info .= @fread($fsock, 1024);
+			}
+			else
+			{
+				$line = @fgets($fsock, 1024);
+				if ($line == "\r\n")
+				{
+					$get_info = true;
+				}
+				else if (stripos($line, '404 not found') !== false)
+				{
+					$errstr = $user->lang('FILE_NOT_FOUND', $filename);
+					return false;
+				}
+			}
+
+			$stream_meta_data = stream_get_meta_data($fsock);
+
+			if (!empty($stream_meta_data['timed_out']) || time() >= $timer_stop)
+			{
+				$errstr = $user->lang['FSOCK_TIMEOUT'];
+				return false;
+			}
+		}
+		@fclose($fsock);
+	}
+	else
+	{
+		if ($errstr)
+		{
+			$errstr = utf8_convert_message($errstr);
+			return false;
+		}
+		else
+		{
+			$errstr = $user->lang['FSOCK_DISABLED'];
+			return false;
+		}
+	}
+
+	return $file_info;
 }
 
 /*

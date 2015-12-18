@@ -212,7 +212,7 @@ function get_folder($user_id, $folder_id = false)
 		);
 	}
 
-	if ($folder_id !== false && $folder_id !== PRIVMSGS_HOLD_BOX && !isset($folder[$folder_id]))
+	if ($folder_id !== false && !isset($folder[$folder_id]))
 	{
 		trigger_error('UNKNOWN_FOLDER');
 	}
@@ -883,7 +883,7 @@ function update_unread_status($unread, $msg_id, $user_id, $folder_id)
 
 	$phpbb_notifications = $phpbb_container->get('notification_manager');
 
-	$phpbb_notifications->mark_notifications_read('notification.type.pm', $msg_id, $user_id);
+	$phpbb_notifications->mark_notifications_read('pm', $msg_id, $user_id);
 
 	$sql = 'UPDATE ' . PRIVMSGS_TO_TABLE . "
 		SET pm_unread = 0
@@ -912,24 +912,6 @@ function update_unread_status($unread, $msg_id, $user_id, $folder_id)
 			$user->data['user_unread_privmsg'] = 0;
 		}
 	}
-}
-
-function mark_folder_read($user_id, $folder_id)
-{
-	global $db;
-
-	$sql = 'SELECT msg_id
-		FROM ' . PRIVMSGS_TO_TABLE . '
-		WHERE folder_id = ' . ((int) $folder_id) . '
-			AND user_id = ' . ((int) $user_id) . '
-			AND pm_unread = 1';
-	$result = $db->sql_query($sql);
-
-	while ($row = $db->sql_fetchrow($result))
-	{
-		update_unread_status(true, $row['msg_id'], $user_id, $folder_id);
-	}
-	$db->sql_freeresult($result);
 }
 
 /**
@@ -1132,7 +1114,7 @@ function delete_pm($user_id, $msg_ids, $folder_id)
 
 	$phpbb_notifications = $phpbb_container->get('notification_manager');
 
-	$phpbb_notifications->delete_notifications('notification.type.pm', array_keys($delete_rows));
+	$phpbb_notifications->delete_notifications('pm', array_keys($delete_rows));
 
 	// Now we have to check which messages we can delete completely
 	$sql = 'SELECT msg_id
@@ -1314,7 +1296,7 @@ function phpbb_delete_users_pms($user_ids)
 					AND ' . $db->sql_in_set('msg_id', $delivered_msg);
 			$db->sql_query($sql);
 
-			$phpbb_notifications->delete_notifications('notification.type.pm', $delivered_msg);
+			$phpbb_notifications->delete_notifications('pm', $delivered_msg);
 		}
 
 		if (!empty($undelivered_msg))
@@ -1327,7 +1309,7 @@ function phpbb_delete_users_pms($user_ids)
 				WHERE ' . $db->sql_in_set('msg_id', $undelivered_msg);
 			$db->sql_query($sql);
 
-			$phpbb_notifications->delete_notifications('notification.type.pm', $undelivered_msg);
+			$phpbb_notifications->delete_notifications('pm', $undelivered_msg);
 		}
 	}
 
@@ -1371,7 +1353,7 @@ function phpbb_delete_users_pms($user_ids)
 				WHERE ' . $db->sql_in_set('msg_id', $delete_ids);
 			$db->sql_query($sql);
 
-			$phpbb_notifications->delete_notifications('notification.type.pm', $delete_ids);
+			$phpbb_notifications->delete_notifications('pm', $delete_ids);
 		}
 	}
 
@@ -1415,9 +1397,9 @@ function rebuild_header($check_ary)
 		$_types = array('u', 'g');
 		foreach ($_types as $type)
 		{
-			if (sizeof(${$type}))
+			if (sizeof($$type))
 			{
-				foreach (${$type} as $id)
+				foreach ($$type as $id)
 				{
 					$address[$type][$id] = $check_type;
 				}
@@ -1591,7 +1573,7 @@ function get_folder_status($folder_id, $folder)
 		'cur'			=> $folder['num_messages'],
 		'remaining'		=> ($user->data['message_limit']) ? $user->data['message_limit'] - $folder['num_messages'] : 0,
 		'max'			=> $user->data['message_limit'],
-		'percent'		=> ($user->data['message_limit']) ? (($user->data['message_limit'] > 0) ? floor(($folder['num_messages'] / $user->data['message_limit']) * 100) : 100) : 0,
+		'percent'		=> ($user->data['message_limit']) ? (($user->data['message_limit'] > 0) ? round(($folder['num_messages'] / $user->data['message_limit']) * 100) : 100) : 0,
 	);
 
 	$return['message']	= $user->lang('FOLDER_STATUS_MSG', $user->lang('MESSAGES_COUNT', (int) $return['max']), $return['cur'], $return['percent']);
@@ -1929,11 +1911,11 @@ function submit_pm($mode, $subject, &$data, $put_in_outbox = true)
 
 	if ($mode == 'edit')
 	{
-		$phpbb_notifications->update_notifications('notification.type.pm', $pm_data);
+		$phpbb_notifications->update_notifications('pm', $pm_data);
 	}
 	else
 	{
-		$phpbb_notifications->add_notifications('notification.type.pm', $pm_data);
+		$phpbb_notifications->add_notifications('pm', $pm_data);
 	}
 
 	/**
@@ -1957,7 +1939,7 @@ function submit_pm($mode, $subject, &$data, $put_in_outbox = true)
 */
 function message_history($msg_id, $user_id, $message_row, $folder, $in_post_mode = false)
 {
-	global $db, $user, $config, $template, $phpbb_root_path, $phpEx, $auth;
+	global $db, $user, $config, $template, $phpbb_root_path, $phpEx, $auth, $bbcode;
 
 	// Select all receipts and the author from the pm we currently view, to only display their pm-history
 	$sql = 'SELECT author_id, user_id
@@ -2009,6 +1991,7 @@ function message_history($msg_id, $user_id, $message_row, $folder, $in_post_mode
 	$title = $row['message_subject'];
 
 	$rowset = array();
+	$bbcode_bitfield = '';
 	$folder_url = append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=pm') . '&amp;folder=';
 
 	do
@@ -2024,6 +2007,7 @@ function message_history($msg_id, $user_id, $message_row, $folder, $in_post_mode
 		else
 		{
 			$rowset[$row['msg_id']] = $row;
+			$bbcode_bitfield = $bbcode_bitfield | base64_decode($row['bbcode_bitfield']);
 		}
 	}
 	while ($row = $db->sql_fetchrow($result));
@@ -2032,6 +2016,16 @@ function message_history($msg_id, $user_id, $message_row, $folder, $in_post_mode
 	if (sizeof($rowset) == 1 && !$in_post_mode)
 	{
 		return false;
+	}
+
+	// Instantiate BBCode class
+	if ((empty($bbcode) || $bbcode === false) && $bbcode_bitfield !== '')
+	{
+		if (!class_exists('bbcode'))
+		{
+			include($phpbb_root_path . 'includes/bbcode.' . $phpEx);
+		}
+		$bbcode = new bbcode(base64_encode($bbcode_bitfield));
 	}
 
 	$title = censor_text($title);

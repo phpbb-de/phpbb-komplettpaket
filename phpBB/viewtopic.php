@@ -94,7 +94,7 @@ if ($view && !$post_id)
 				AND " . $phpbb_content_visibility->get_visibility_sql('post', $forum_id) . "
 				AND post_time > $topic_last_read
 				AND forum_id = $forum_id
-			ORDER BY post_time ASC, post_id ASC";
+			ORDER BY post_time ASC";
 		$result = $db->sql_query_limit($sql, 1);
 		$row = $db->sql_fetchrow($result);
 		$db->sql_freeresult($result);
@@ -146,7 +146,7 @@ if ($view && !$post_id)
 					AND topic_moved_id = 0
 					AND topic_last_post_time $sql_condition {$row['topic_last_post_time']}
 					AND " . $phpbb_content_visibility->get_visibility_sql('topic', $row['forum_id']) . "
-				ORDER BY topic_last_post_time $sql_ordering, topic_last_post_id $sql_ordering";
+				ORDER BY topic_last_post_time $sql_ordering";
 			$result = $db->sql_query_limit($sql, 1);
 			$row = $db->sql_fetchrow($result);
 			$db->sql_freeresult($result);
@@ -336,41 +336,8 @@ if (($topic_data['topic_type'] == POST_STICKY || $topic_data['topic_type'] == PO
 // Setup look and feel
 $user->setup('viewtopic', $topic_data['forum_style']);
 
-$overrides_f_read_check = false;
-$overrides_forum_password_check = false;
-$topic_tracking_info = isset($topic_tracking_info) ? $topic_tracking_info : null;
-
-/**
-* Event to apply extra permissions and to override original phpBB's f_read permission and forum password check
-* on viewtopic access
-*
-* @event core.viewtopic_before_f_read_check
-* @var	int		forum_id						The forum id from where the topic belongs
-* @var	int		topic_id						The id of the topic the user tries to access
-* @var	int		post_id							The id of the post the user tries to start viewing at.
-*												It may be 0 for none given.
-* @var	array	topic_data						All the information from the topic and forum tables for this topic
-* 												It includes posts information if post_id is not 0
-* @var	bool	overrides_f_read_check			Set true to remove f_read check afterwards
-* @var	bool	overrides_forum_password_check	Set true to remove forum_password check afterwards
-* @var	array	topic_tracking_info				Information upon calling get_topic_tracking()
-*												Set it to NULL to allow auto-filling later.
-*												Set it to an array to override original data.
-* @since 3.1.3-RC1
-*/
-$vars = array(
-	'forum_id',
-	'topic_id',
-	'post_id',
-	'topic_data',
-	'overrides_f_read_check',
-	'overrides_forum_password_check',
-	'topic_tracking_info',
-);
-extract($phpbb_dispatcher->trigger_event('core.viewtopic_before_f_read_check', compact($vars)));
-
 // Start auth check
-if (!$overrides_f_read_check && !$auth->acl_get('f_read', $forum_id))
+if (!$auth->acl_get('f_read', $forum_id))
 {
 	if ($user->data['user_id'] != ANONYMOUS)
 	{
@@ -382,7 +349,7 @@ if (!$overrides_f_read_check && !$auth->acl_get('f_read', $forum_id))
 
 // Forum is passworded ... check whether access has been granted to this
 // user this session, if not show login box
-if (!$overrides_forum_password_check && $topic_data['forum_password'])
+if ($topic_data['forum_password'])
 {
 	login_forum_box($topic_data);
 }
@@ -421,7 +388,7 @@ if (!isset($topic_tracking_info))
 $limit_days = array(0 => $user->lang['ALL_POSTS'], 1 => $user->lang['1_DAY'], 7 => $user->lang['7_DAYS'], 14 => $user->lang['2_WEEKS'], 30 => $user->lang['1_MONTH'], 90 => $user->lang['3_MONTHS'], 180 => $user->lang['6_MONTHS'], 365 => $user->lang['1_YEAR']);
 
 $sort_by_text = array('a' => $user->lang['AUTHOR'], 't' => $user->lang['POST_TIME'], 's' => $user->lang['SUBJECT']);
-$sort_by_sql = array('a' => array('u.username_clean', 'p.post_id'), 't' => array('p.post_time', 'p.post_id'), 's' => array('p.post_subject', 'p.post_id'));
+$sort_by_sql = array('a' => array('u.username_clean', 'p.post_id'), 't' => 'p.post_time', 's' => array('p.post_subject', 'p.post_id'));
 $join_user_sql = array('a' => true, 't' => false, 's' => false);
 
 $s_limit_days = $s_sort_key = $s_sort_dir = $u_sort_param = '';
@@ -482,7 +449,7 @@ $s_watching_topic = array(
 	'is_watching'	=> false,
 );
 
-if ($config['allow_topic_notify'])
+if (($config['email_enable'] || $config['jab_enable']) && $config['allow_topic_notify'])
 {
 	$notify_status = (isset($topic_data['notify_status'])) ? $topic_data['notify_status'] : null;
 	watch_topic_forum('topic', $s_watching_topic, $user->data['user_id'], $forum_id, $topic_id, $notify_status, $start, $topic_data['topic_title']);
@@ -572,8 +539,8 @@ $s_quickmod_action = append_sid(
 $quickmod_array = array(
 //	'key'			=> array('LANG_KEY', $userHasPermissions),
 
-	'lock'					=> array('LOCK_TOPIC', ($topic_data['topic_status'] == ITEM_UNLOCKED) && ($auth->acl_get('m_lock', $forum_id) || ($auth->acl_get('f_user_lock', $forum_id) && $user->data['is_registered'] && $user->data['user_id'] == $topic_data['topic_poster']))),
-	'unlock'				=> array('UNLOCK_TOPIC', ($topic_data['topic_status'] != ITEM_UNLOCKED) && ($auth->acl_get('m_lock', $forum_id))),
+	'lock'					=> array('LOCK_TOPIC', ($topic_data['topic_status'] == ITEM_UNLOCKED) && ($auth->acl_get('m_lock', $forum_id) || ($auth->acl_get('f_user_lock', $forum_id) && $user->data['is_registered'] && $user->data['user_id'] == $topic_data['topic_poster'] && $topic_data['topic_status'] == ITEM_UNLOCKED))),
+	'unlock'				=> array('UNLOCK_TOPIC', ($topic_data['topic_status'] != ITEM_UNLOCKED) && ($auth->acl_get('m_lock', $forum_id) || ($auth->acl_get('f_user_lock', $forum_id) && $user->data['is_registered'] && $user->data['user_id'] == $topic_data['topic_poster'] && $topic_data['topic_status'] == ITEM_UNLOCKED))),
 	'delete_topic'		=> array('DELETE_TOPIC', ($auth->acl_get('m_delete', $forum_id) || (($topic_data['topic_visibility'] != ITEM_DELETED) && $auth->acl_get('m_softdelete', $forum_id)))),
 	'restore_topic'		=> array('RESTORE_TOPIC', (($topic_data['topic_visibility'] == ITEM_DELETED) && $auth->acl_get('m_approve', $forum_id))),
 	'move'					=> array('MOVE_TOPIC', $auth->acl_get('m_move', $forum_id) && $topic_data['topic_status'] != ITEM_MOVED),
@@ -588,7 +555,7 @@ $quickmod_array = array(
 	'topic_logs'			=> array('VIEW_TOPIC_LOGS', $auth->acl_get('m_', $forum_id)),
 );
 
-foreach ($quickmod_array as $option => $qm_ary)
+foreach($quickmod_array as $option => $qm_ary)
 {
 	if (!empty($qm_ary[1]))
 	{
@@ -635,38 +602,6 @@ if (!empty($_EXTRA_URL))
 
 // If we've got a hightlight set pass it on to pagination.
 $base_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($highlight_match) ? "&amp;hilit=$highlight" : ''));
-
-/**
-* Event to modify data before template variables are being assigned
-*
-* @event core.viewtopic_assign_template_vars_before
-* @var	string	base_url			URL to be passed to generate pagination
-* @var	int		forum_id			Forum ID
-* @var	int		post_id				Post ID
-* @var	array	quickmod_array		Array with quick moderation options data
-* @var	int		start				Pagination information
-* @var	array	topic_data			Array with topic data
-* @var	int		topic_id			Topic ID
-* @var	array	topic_tracking_info	Array with topic tracking data
-* @var	int		total_posts			Topic total posts count
-* @var	string	viewtopic_url		URL to the topic page
-* @since 3.1.0-RC4
-* @change 3.1.2-RC1 Added viewtopic_url
-*/
-$vars = array(
-	'base_url',
-	'forum_id',
-	'post_id',
-	'quickmod_array',
-	'start',
-	'topic_data',
-	'topic_id',
-	'topic_tracking_info',
-	'total_posts',
-	'viewtopic_url',
-);
-extract($phpbb_dispatcher->trigger_event('core.viewtopic_assign_template_vars_before', compact($vars)));
-
 $pagination->generate_template_pagination($base_url, 'pagination', 'start', $total_posts, $config['posts_per_page'], $start);
 
 // Send vars to template
@@ -725,7 +660,7 @@ $template->assign_vars(array(
 	'U_TOPIC'				=> "{$server_path}viewtopic.$phpEx?f=$forum_id&amp;t=$topic_id",
 	'U_FORUM'				=> $server_path,
 	'U_VIEW_TOPIC' 			=> $viewtopic_url,
-	'U_CANONICAL'			=> generate_board_url() . '/' . append_sid("viewtopic.$phpEx", "t=$topic_id" . (($start) ? "&amp;start=$start" : ''), true, ''),
+	'U_CANONICAL'			=> generate_board_url() . '/' . append_sid("viewtopic.$phpEx", "t=$topic_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($start) ? "&amp;start=$start" : ''), true, ''),
 	'U_VIEW_FORUM' 			=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $forum_id),
 	'U_VIEW_OLDER_TOPIC'	=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;view=previous"),
 	'U_VIEW_NEWER_TOPIC'	=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;view=next"),
@@ -803,36 +738,6 @@ if (!empty($topic_data['poll_start']))
 		(!sizeof($cur_voted_id) ||
 		($auth->acl_get('f_votechg', $forum_id) && $topic_data['poll_vote_change']))) ? true : false;
 	$s_display_results = (!$s_can_vote || ($s_can_vote && sizeof($cur_voted_id)) || $view == 'viewpoll') ? true : false;
-
-	/**
-	* Event to manipulate the poll data
-	*
-	* @event core.viewtopic_modify_poll_data
-	* @var	array	cur_voted_id				Array with options' IDs current user has voted for
-	* @var	int		forum_id					The topic's forum id
-	* @var	array	poll_info					Array with the poll information
-	* @var	bool	s_can_vote					Flag indicating if a user can vote
-	* @var	bool	s_display_results			Flag indicating if results or poll options should be displayed
-	* @var	int		topic_id					The id of the topic the user tries to access
-	* @var	array	topic_data					All the information from the topic and forum tables for this topic
-	* @var	string	viewtopic_url				URL to the topic page
-	* @var	array	vote_counts					Array with the vote counts for every poll option
-	* @var	array	voted_id					Array with updated options' IDs current user is voting for
-	* @since 3.1.5-RC1
-	*/
-	$vars = array(
-		'cur_voted_id',
-		'forum_id',
-		'poll_info',
-		's_can_vote',
-		's_display_results',
-		'topic_id',
-		'topic_data',
-		'viewtopic_url',
-		'vote_counts',
-		'voted_id',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.viewtopic_modify_poll_data', compact($vars)));
 
 	if ($update && $s_can_vote)
 	{
@@ -967,7 +872,6 @@ if (!empty($topic_data['poll_start']))
 
 	$topic_data['poll_title'] = generate_text_for_display($topic_data['poll_title'], $poll_info[0]['bbcode_uid'], $poll_info[0]['bbcode_bitfield'], $parse_flags, true);
 
-	$poll_template_data = $poll_options_template_data = array();
 	foreach ($poll_info as $poll_option)
 	{
 		$option_pct = ($poll_total > 0) ? $poll_option['poll_option_total'] / $poll_total : 0;
@@ -976,7 +880,7 @@ if (!empty($topic_data['poll_start']))
 		$option_pct_rel_txt = sprintf("%.1d%%", round($option_pct_rel * 100));
 		$option_most_votes = ($poll_option['poll_option_total'] > 0 && $poll_option['poll_option_total'] == $poll_most) ? true : false;
 
-		$poll_options_template_data[] = array(
+		$template->assign_block_vars('poll_option', array(
 			'POLL_OPTION_ID' 			=> $poll_option['poll_option_id'],
 			'POLL_OPTION_CAPTION' 		=> $poll_option['poll_option_text'],
 			'POLL_OPTION_RESULT' 		=> $poll_option['poll_option_total'],
@@ -986,12 +890,12 @@ if (!empty($topic_data['poll_start']))
 			'POLL_OPTION_WIDTH'     	=> round($option_pct * 250),
 			'POLL_OPTION_VOTED'			=> (in_array($poll_option['poll_option_id'], $cur_voted_id)) ? true : false,
 			'POLL_OPTION_MOST_VOTES'	=> $option_most_votes,
-		);
+		));
 	}
 
 	$poll_end = $topic_data['poll_length'] + $topic_data['poll_start'];
 
-	$poll_template_data = array(
+	$template->assign_vars(array(
 		'POLL_QUESTION'		=> $topic_data['poll_title'],
 		'TOTAL_VOTES' 		=> $poll_total,
 		'POLL_LEFT_CAP_IMG'	=> $user->img('poll_left'),
@@ -1007,45 +911,9 @@ if (!empty($topic_data['poll_start']))
 		'S_POLL_ACTION'		=> $viewtopic_url,
 
 		'U_VIEW_RESULTS'	=> $viewtopic_url . '&amp;view=viewpoll',
-	);
+	));
 
-	/**
-	* Event to add/modify poll template data
-	*
-	* @event core.viewtopic_modify_poll_template_data
-	* @var	array	cur_voted_id					Array with options' IDs current user has voted for
-	* @var	int		poll_end						The poll end time
-	* @var	array	poll_info						Array with the poll information
-	* @var	array	poll_options_template_data		Array with the poll options template data
-	* @var	array	poll_template_data				Array with the common poll template data
-	* @var	int		poll_total						Total poll votes count
-	* @var	int		poll_most						Mostly voted option votes count
-	* @var	array	topic_data						All the information from the topic and forum tables for this topic
-	* @var	string	viewtopic_url					URL to the topic page
-	* @var	array	vote_counts						Array with the vote counts for every poll option
-	* @var	array	voted_id						Array with updated options' IDs current user is voting for
-	* @since 3.1.5-RC1
-	*/
-	$vars = array(
-		'cur_voted_id',
-		'poll_end',
-		'poll_info',
-		'poll_options_template_data',
-		'poll_template_data',
-		'poll_total',
-		'poll_most',
-		'topic_data',
-		'viewtopic_url',
-		'vote_counts',
-		'voted_id',
-	);
-	extract($phpbb_dispatcher->trigger_event('core.viewtopic_modify_poll_template_data', compact($vars)));
-
-	$template->assign_block_vars_array('poll_option', $poll_options_template_data);
-
-	$template->assign_vars($poll_template_data);
-
-	unset($poll_end, $poll_info, $poll_options_template_data, $poll_template_data, $voted_id);
+	unset($poll_end, $poll_info, $voted_id);
 }
 
 // If the user is trying to reach the second half of the topic, fetch it starting from the end
@@ -1082,6 +950,7 @@ else
 // Container for user details, only process once
 $post_list = $user_cache = $id_cache = $attachments = $attach_list = $rowset = $update_count = $post_edit_list = $post_delete_list = array();
 $has_unapproved_attachments = $has_approved_attachments = $display_notice = false;
+$bbcode_bitfield = '';
 $i = $i_total = 0;
 
 // Go ahead and pull all data for this topic
@@ -1247,6 +1116,15 @@ while ($row = $db->sql_fetchrow($result))
 
 	$rowset[$row['post_id']] = $rowset_data;
 
+	// Define the global bbcode bitfield, will be used to load bbcodes
+	$bbcode_bitfield = $bbcode_bitfield | base64_decode($row['bbcode_bitfield']);
+
+	// Is a signature attached? Are we going to display it?
+	if ($row['enable_sig'] && $config['allow_sig'] && $user->optionget('viewsigs'))
+	{
+		$bbcode_bitfield = $bbcode_bitfield | base64_decode($row['user_sig_bbcode_bitfield']);
+	}
+
 	// Cache various user specific data ... so we don't have to recompute
 	// this each time the same user appears on this page
 	if (!isset($user_cache[$poster_id]))
@@ -1296,10 +1174,7 @@ while ($row = $db->sql_fetchrow($result))
 
 			$user_cache[$poster_id] = $user_cache_data;
 
-			$user_rank_data = phpbb_get_user_rank($row, false);
-			$user_cache[$poster_id]['rank_title'] = $user_rank_data['title'];
-			$user_cache[$poster_id]['rank_image'] = $user_rank_data['img'];
-			$user_cache[$poster_id]['rank_image_src'] = $user_rank_data['img_src'];
+			get_user_rank($row['user_rank'], false, $user_cache[$poster_id]['rank_title'], $user_cache[$poster_id]['rank_image'], $user_cache[$poster_id]['rank_image_src']);
 		}
 		else
 		{
@@ -1340,8 +1215,8 @@ while ($row = $db->sql_fetchrow($result))
 				'contact_user' 		=> $user->lang('CONTACT_USER', get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['username'])),
 
 				'online'		=> false,
-				'jabber'		=> ($config['jab_enable'] && $row['user_jabber'] && $auth->acl_get('u_sendim')) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", "mode=contact&amp;action=jabber&amp;u=$poster_id") : '',
-				'search'		=> ($config['load_search'] && $auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id=$poster_id&amp;sr=posts") : '',
+				'jabber'		=> ($row['user_jabber'] && $auth->acl_get('u_sendim')) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", "mode=contact&amp;action=jabber&amp;u=$poster_id") : '',
+				'search'		=> ($auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id=$poster_id&amp;sr=posts") : '',
 
 				'author_full'		=> get_username_string('full', $poster_id, $row['username'], $row['user_colour']),
 				'author_colour'		=> get_username_string('colour', $poster_id, $row['username'], $row['user_colour']),
@@ -1363,10 +1238,7 @@ while ($row = $db->sql_fetchrow($result))
 
 			$user_cache[$poster_id] = $user_cache_data;
 
-			$user_rank_data = phpbb_get_user_rank($row, $row['user_posts']);
-			$user_cache[$poster_id]['rank_title'] = $user_rank_data['title'];
-			$user_cache[$poster_id]['rank_image'] = $user_rank_data['img'];
-			$user_cache[$poster_id]['rank_image_src'] = $user_rank_data['img_src'];
+			get_user_rank($row['user_rank'], $row['user_posts'], $user_cache[$poster_id]['rank_title'], $user_cache[$poster_id]['rank_image'], $user_cache[$poster_id]['rank_image_src']);
 
 			if ((!empty($row['user_allow_viewemail']) && $auth->acl_get('u_sendemail')) || $auth->acl_get('a_email'))
 			{
@@ -1520,6 +1392,23 @@ if (sizeof($attach_list))
 	}
 }
 
+$methods = phpbb_gen_download_links('topic_id', $topic_id, $phpbb_root_path, $phpEx);
+foreach ($methods as $method)
+{
+	$template->assign_block_vars('dl_method', $method);
+}
+
+$template->assign_vars(array(
+	'S_HAS_ATTACHMENTS'				=> $topic_data['topic_attachment'],
+	'U_DOWNLOAD_ALL_ATTACHMENTS'	=> $methods[0]['LINK'],
+));
+
+// Instantiate BBCode if need be
+if ($bbcode_bitfield !== '')
+{
+	$bbcode = new bbcode(base64_encode($bbcode_bitfield));
+}
+
 // Get the list of users who can receive private messages
 $can_receive_pm_list = $auth->acl_get_list(array_keys($user_cache), 'u_readpm');
 $can_receive_pm_list = (empty($can_receive_pm_list) || !isset($can_receive_pm_list[0]['u_readpm'])) ? array() : $can_receive_pm_list[0]['u_readpm'];
@@ -1531,49 +1420,8 @@ $i_total = sizeof($rowset) - 1;
 $prev_post_id = '';
 
 $template->assign_vars(array(
-	'S_HAS_ATTACHMENTS' => $topic_data['topic_attachment'],
 	'S_NUM_POSTS' => sizeof($post_list))
 );
-
-/**
-* Event to modify the post, poster and attachment data before assigning the posts
-*
-* @event core.viewtopic_modify_post_data
-* @var	int		forum_id	Forum ID
-* @var	int		topic_id	Topic ID
-* @var	array	topic_data	Array with topic data
-* @var	array	post_list	Array with post_ids we are going to display
-* @var	array	rowset		Array with post_id => post data
-* @var	array	user_cache	Array with prepared user data
-* @var	int		start		Pagination information
-* @var	int		sort_days	Display posts of previous x days
-* @var	string	sort_key	Key the posts are sorted by
-* @var	string	sort_dir	Direction the posts are sorted by
-* @var	bool	display_notice				Shall we display a notice instead of attachments
-* @var	bool	has_approved_attachments	Does the topic have approved attachments
-* @var	array	attachments					List of attachments post_id => array of attachments
-* @var	array	permanently_banned_users	List of permanently banned users
-* @var	array	can_receive_pm_list			Array with posters that can receive pms
-* @since 3.1.0-RC3
-*/
-$vars = array(
-	'forum_id',
-	'topic_id',
-	'topic_data',
-	'post_list',
-	'rowset',
-	'user_cache',
-	'sort_days',
-	'sort_key',
-	'sort_dir',
-	'start',
-	'permanently_banned_users',
-	'can_receive_pm_list',
-	'display_notice',
-	'has_approved_attachments',
-	'attachments',
-);
-extract($phpbb_dispatcher->trigger_event('core.viewtopic_modify_post_data', compact($vars)));
 
 // Output the posts
 $first_unread = $post_unread = false;
@@ -1941,7 +1789,6 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 	* @var	int		current_row_number	Number of the post on this page
 	* @var	int		end					Number of posts on this page
 	* @var	int		total_posts			Total posts count
-	* @var	int		poster_id			Post author id
 	* @var	array	row					Array with original post and user data
 	* @var	array	cp_row				Custom profile field data of the poster
 	* @var	array	attachments			List of attachments
@@ -1951,14 +1798,12 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 	* @since 3.1.0-a1
 	* @change 3.1.0-a3 Added vars start, current_row_number, end, attachments
 	* @change 3.1.0-b3 Added topic_data array, total_posts
-	* @change 3.1.0-RC3 Added poster_id
 	*/
 	$vars = array(
 		'start',
 		'current_row_number',
 		'end',
 		'total_posts',
-		'poster_id',
 		'row',
 		'cp_row',
 		'attachments',
@@ -2029,6 +1874,12 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 			$template->assign_block_vars('postrow.attachment', array(
 				'DISPLAY_ATTACHMENT'	=> $attachment)
 			);
+		}
+
+		$methods = phpbb_gen_download_links('post_id', $row['post_id'], $phpbb_root_path, $phpEx);
+		foreach ($methods as $method)
+		{
+			$template->assign_block_vars('postrow.dl_method', $method);
 		}
 	}
 
@@ -2210,11 +2061,9 @@ $page_title = $topic_data['topic_title'] . ($start ? ' - ' . sprintf($user->lang
 * @var	array	topic_data		Array with topic data
 * @var	int		forum_id		Forum ID of the topic
 * @var	int		start			Start offset used to calculate the page
-* @var	array	post_list		Array with post_ids we are going to display
 * @since 3.1.0-a1
-* @change 3.1.0-RC4 Added post_list var
 */
-$vars = array('page_title', 'topic_data', 'forum_id', 'start', 'post_list');
+$vars = array('page_title', 'topic_data', 'forum_id', 'start');
 extract($phpbb_dispatcher->trigger_event('core.viewtopic_modify_page_title', compact($vars)));
 
 // Output the page

@@ -737,7 +737,7 @@ class acp_icons
 				{
 					garbage_collection();
 
-					header('Cache-Control: public');
+					header('Pragma: public');
 
 					// Send out the Headers
 					header('Content-Type: text/x-delimtext; name="' . $mode . '.pak"');

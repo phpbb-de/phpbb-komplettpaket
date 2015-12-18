@@ -1164,40 +1164,19 @@ class install_install extends module
 
 			foreach ($sql_query as $sql)
 			{
-				// Ignore errors when the functions or types already exist
-				// to allow installing phpBB twice in the same database with
-				// a different prefix
-				$db->sql_query($sql);
+				//$sql = trim(str_replace('|', ';', $sql));
+				if (!$db->sql_query($sql))
+				{
+					$error = $db->sql_error();
+					$this->p_master->db_error($error['message'], $sql, __LINE__, __FILE__);
+				}
 			}
 			unset($sql_query);
 		}
 
 		// Ok we have the db info go ahead and work on building the table
-		if (file_exists('schemas/schema.json'))
-		{
-			$db_table_schema = @file_get_contents('schemas/schema.json');
-			$db_table_schema = json_decode($db_table_schema, true);
-		}
-		else
-		{
-			global $phpbb_root_path, $phpEx, $table_prefix;
-			$table_prefix = 'phpbb_';
-
-			if (!defined('CONFIG_TABLE'))
-			{
-				// We need to include the constants file for the table constants
-				// when we generate the schema from the migration files.
-				include($phpbb_root_path . 'includes/constants.' . $phpEx);
-			}
-
-			$finder = new \phpbb\finder(new \phpbb\filesystem(), $phpbb_root_path, null, $phpEx);
-			$classes = $finder->core_path('phpbb/db/migration/data/')
-				->get_classes();
-
-			$sqlite_db = new \phpbb\db\driver\sqlite();
-			$schema_generator = new \phpbb\db\migration\schema_generator($classes, new \phpbb\config\config(array()), $sqlite_db, new \phpbb\db\tools($sqlite_db, true), $phpbb_root_path, $phpEx, $table_prefix);
-			$db_table_schema = $schema_generator->get_schema();
-		}
+		$db_table_schema = @file_get_contents('schemas/schema.json');
+		$db_table_schema = json_decode($db_table_schema, true);
 
 		if (!defined('CONFIG_TABLE'))
 		{
@@ -1403,7 +1382,7 @@ class install_install extends module
 		if (@extension_loaded('gd'))
 		{
 			$sql_ary[] = 'UPDATE ' . $data['table_prefix'] . "config
-				SET config_value = 'core.captcha.plugins.gd'
+				SET config_value = 'phpbb_captcha_gd'
 				WHERE config_name = 'captcha_plugin'";
 
 			$sql_ary[] = 'UPDATE ' . $data['table_prefix'] . "config
@@ -1459,7 +1438,7 @@ class install_install extends module
 	*/
 	function build_search_index($mode, $sub)
 	{
-		global $db, $lang, $phpbb_root_path, $phpbb_dispatcher, $phpEx, $config, $auth, $user;
+		global $db, $lang, $phpbb_root_path, $phpEx, $config, $auth, $user;
 
 		// Obtain any submitted data
 		$data = $this->get_submitted_data();
@@ -1492,7 +1471,7 @@ class install_install extends module
 		set_config_count(null, null, null, $config);
 
 		$error = false;
-		$search = new \phpbb\search\fulltext_native($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
+		$search = new \phpbb\search\fulltext_native($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user);
 
 		$sql = 'SELECT post_id, post_subject, post_text, poster_id, forum_id
 			FROM ' . POSTS_TABLE;
@@ -1675,19 +1654,6 @@ class install_install extends module
 				$db->sql_freeresult($result);
 
 				$_module->move_module_by($row, 'move_up', 5);
-
-				// Move extension management module 1 up...
-				$sql = 'SELECT *
-					FROM ' . MODULES_TABLE . "
-					WHERE module_langname = 'ACP_EXTENSION_MANAGEMENT'
-						AND module_class = 'acp'
-						AND module_mode = ''
-						AND module_basename = ''";
-				$result = $db->sql_query($sql);
-				$row = $db->sql_fetchrow($result);
-				$db->sql_freeresult($result);
-
-				$_module->move_module_by($row, 'move_up', 1);
 			}
 
 			if ($module_class == 'mcp')
@@ -1960,7 +1926,7 @@ class install_install extends module
 				'bot_ip'		=> (string) $bot_ary[1],
 			));
 
-			$db->sql_query($sql);
+			$result = $db->sql_query($sql);
 		}
 	}
 
@@ -2081,7 +2047,7 @@ class install_install extends module
 		return array(
 			'language'		=> basename(request_var('language', '')),
 			'dbms'			=> request_var('dbms', ''),
-			'dbhost'		=> request_var('dbhost', '', true),
+			'dbhost'		=> request_var('dbhost', ''),
 			'dbport'		=> request_var('dbport', ''),
 			'dbuser'		=> request_var('dbuser', ''),
 			'dbpasswd'		=> request_var('dbpasswd', '', true),

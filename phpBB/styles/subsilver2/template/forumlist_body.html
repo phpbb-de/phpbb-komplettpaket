@@ -39,9 +39,7 @@
 				<td class="catdiv" colspan="3">&nbsp;</td>
 			</tr>
 		<!-- ENDIF -->
-		<!-- EVENT forumlist_body_forum_row_before -->
 		<tr>
-			<!-- EVENT forumlist_body_forum_row_prepend -->
 			<td class="row1" width="50" align="center">{forumrow.FORUM_FOLDER_IMG}</td>
 			<td class="row1" width="100%">
 				<!-- IF forumrow.FORUM_IMAGE -->
@@ -56,7 +54,7 @@
 					<!-- EVENT forumlist_body_subforums_before -->
 					<p class="forumdesc"><strong>{forumrow.L_SUBFORUM_STR}{L_COLON}</strong>
 					<!-- BEGIN subforum -->
-						<a href="{forumrow.subforum.U_SUBFORUM}" class="subforum<!-- IF forumrow.subforum.S_UNREAD --> unread<!-- ELSE --> read<!-- ENDIF -->" title="<!-- IF forumrow.subforum.S_UNREAD -->{L_UNREAD_POSTS}<!-- ELSE -->{L_NO_UNREAD_POSTS}<!-- ENDIF -->">{forumrow.subforum.SUBFORUM_NAME}</a><!-- IF not forumrow.subforum.S_LAST_ROW -->{L_COMMA_SEPARATOR}<!-- ENDIF -->
+						<a href="{forumrow.subforum.U_SUBFORUM}" class="subforum<!-- IF forumrow.subforum.S_UNREAD --> unread<!-- ELSE --> read<!-- ENDIF -->" title="<!-- IF forumrow.subforum.UNREAD -->{L_UNREAD_POSTS}<!-- ELSE -->{L_NO_UNREAD_POSTS}<!-- ENDIF -->">{forumrow.subforum.SUBFORUM_NAME}</a><!-- IF not forumrow.subforum.S_LAST_ROW -->{L_COMMA_SEPARATOR}<!-- ENDIF -->
 					<!-- END subforum -->
 					</p>
 					<!-- EVENT forumlist_body_subforums_after -->
@@ -85,9 +83,7 @@
 					<p class="topicdetails">{L_NO_POSTS}</p>
 				<!-- ENDIF -->
 			</td>
-			<!-- EVENT forumlist_body_forum_row_append -->
 		</tr>
-		<!-- EVENT forumlist_body_forum_row_after -->
 	<!-- ENDIF -->
 	<!-- EVENT forumlist_body_last_row_after -->
 <!-- BEGINELSE -->

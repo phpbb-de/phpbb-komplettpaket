@@ -2,7 +2,7 @@
 
 <form id="ucp" method="post" action="{S_UCP_ACTION}"{S_FORM_ENCTYPE}>
 
-<h2>{L_TITLE} <span class="small">[ <a href="{U_USER_PROFILE}" title="{L_VIEW_PROFILE}">{L_VIEW_PROFILE}</a> ]</span></h2>
+<h2>{L_TITLE}</h2>
 
 <div class="panel">
 	<div class="inner">
@@ -10,7 +10,6 @@
 
 	<fieldset>
 	<!-- IF ERROR --><p class="error">{ERROR}</p><!-- ENDIF -->
-	<!-- EVENT ucp_profile_profile_info_before -->
 	<!-- IF S_BIRTHDAYS_ENABLED -->
 		<dl>
 			<dt><label for="bday_day">{L_BIRTHDAY}{L_COLON}</label><br /><span>{L_BIRTHDAY_EXPLAIN}</span></dt>
@@ -35,7 +34,6 @@
 			<dd>{profile_fields.FIELD}</dd>
 		</dl>
 	<!-- END profile_fields -->
-	<!-- EVENT ucp_profile_profile_info_after -->
 	</fieldset>
 
 	</div>

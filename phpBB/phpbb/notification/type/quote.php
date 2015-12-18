@@ -27,7 +27,7 @@ class quote extends \phpbb\notification\type\post
 	*/
 	public function get_type()
 	{
-		return 'notification.type.quote';
+		return 'quote';
 	}
 
 	/**
@@ -66,8 +66,7 @@ class quote extends \phpbb\notification\type\post
 	/**
 	* Find the users who want to receive notifications
 	*
-	* @param array $post Data from submit_post
-	* @param array $options Options for finding users for notification
+	* @param array $post Data from
 	*
 	* @return array
 	*/
@@ -102,13 +101,28 @@ class quote extends \phpbb\notification\type\post
 		}
 		$this->db->sql_freeresult($result);
 
-		return $this->get_authorised_recipients($users, $post['forum_id'], $options, true);
+		if (empty($users))
+		{
+			return array();
+		}
+		sort($users);
+
+		$auth_read = $this->auth->acl_get_list($users, 'f_read', $post['forum_id']);
+
+		if (empty($auth_read))
+		{
+			return array();
+		}
+
+		$notify_users = $this->check_user_notification_options($auth_read[$post['forum_id']]['f_read'], $options);
+
+		return $notify_users;
 	}
 
 	/**
 	* Update a notification
 	*
-	* @param array $post Data specific for this type that will be updated
+	* @param array $data Data specific for this type that will be updated
 	*/
 	public function update_notifications($post)
 	{

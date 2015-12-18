@@ -68,7 +68,7 @@ class bcrypt extends base
 			return false;
 		}
 
-		if ($this->helper->string_compare($hash, $this->hash($password, $salt)))
+		if ($hash == $this->hash($password, $salt))
 		{
 			return true;
 		}

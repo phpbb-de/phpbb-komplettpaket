@@ -397,7 +397,7 @@ class acp_prune
 			$joined_after = request_var('joined_after', '');
 			$active = request_var('active', '');
 
-			$count = ($request->variable('count', '') === '') ? false : $request->variable('count', 0);
+			$count = request_var('count', 0);
 
 			$active = ($active) ? explode('-', $active) : array();
 			$joined_before = ($joined_before) ? explode('-', $joined_before) : array();
@@ -439,7 +439,7 @@ class acp_prune
 			$where_sql .= ($username) ? ' AND username_clean ' . $db->sql_like_expression(str_replace('*', $db->get_any_char(), utf8_clean_string($username))) : '';
 			$where_sql .= ($email) ? ' AND user_email ' . $db->sql_like_expression(str_replace('*', $db->get_any_char(), $email)) . ' ' : '';
 			$where_sql .= $joined_sql;
-			$where_sql .= ($count !== false) ? " AND user_posts " . $key_match[$count_select] . ' ' . (int) $count . ' ' : '';
+			$where_sql .= ($count) ? " AND user_posts " . $key_match[$count_select] . ' ' . (int) $count . ' ' : '';
 
 			// First handle pruning of users who never logged in, last active date is 0000-00-00
 			if (sizeof($active) && (int) $active[0] == 0 && (int) $active[1] == 0 && (int) $active[2] == 0)
@@ -506,9 +506,9 @@ class acp_prune
 				WHERE ug.group_id = ' . (int) $group_id . '
 					AND ug.user_id <> ' . ANONYMOUS . '
 					AND u.user_type <> ' . USER_FOUNDER . '
-					AND ug.user_pending = 0
-					AND u.user_id = ug.user_id
-					' . (!empty($user_ids) ? ' AND ' . $db->sql_in_set('ug.user_id', $user_ids) : '');
+					AND ug.user_pending = 0 ' .
+					((!empty($user_ids)) ? 'AND ' . $db->sql_in_set('ug.user_id', $user_ids) : '') . '
+					AND u.user_id = ug.user_id';
 			$result = $db->sql_query($sql);
 
 			// we're performing an intersection operation, so all the relevant users
@@ -532,10 +532,10 @@ class acp_prune
 			$sql = 'SELECT u.user_id, u.username, COUNT(p.post_id) AS queue_posts
 				FROM ' . POSTS_TABLE . ' p, ' . USERS_TABLE . ' u
 				WHERE u.user_id <> ' . ANONYMOUS . '
-					AND u.user_type <> ' . USER_FOUNDER . '
+					AND u.user_type <> ' . USER_FOUNDER .
+					((!empty($user_ids)) ? 'AND ' . $db->sql_in_set('p.poster_id', $user_ids) : '') . '
 					AND ' . $db->sql_in_set('p.post_visibility', array(ITEM_UNAPPROVED, ITEM_REAPPROVE)) . '
 					AND u.user_id = p.poster_id
-					' . (!empty($user_ids) ? ' AND ' . $db->sql_in_set('p.poster_id', $user_ids) : '') . '
 				GROUP BY p.poster_id
 				HAVING queue_posts ' . $key_match[$queue_select] . ' ' . $posts_on_queue;
 			$result = $db->sql_query($sql);

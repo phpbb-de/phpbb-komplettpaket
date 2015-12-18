@@ -383,7 +383,7 @@ function view_folder($id, $mode, $folder_id, $folder)
 				break;
 			}
 
-			header('Cache-Control: private, no-cache');
+			header('Pragma: no-cache');
 			header("Content-Type: $mimetype; name=\"data.$filetype\"");
 			header("Content-disposition: attachment; filename=data.$filetype");
 			echo $string;

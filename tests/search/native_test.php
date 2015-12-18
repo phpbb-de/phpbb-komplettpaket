@@ -33,12 +33,9 @@ class phpbb_search_native_test extends phpbb_search_test_case
 		$cache = new phpbb_mock_cache();
 
 		$this->db = $this->new_dbal();
-		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$error = null;
 		$class = self::get_search_wrapper('\phpbb\search\fulltext_native');
-		$config['fulltext_native_min_chars'] = 2;
-		$config['fulltext_native_max_chars'] = 14;
-		$this->search = new $class($error, $phpbb_root_path, $phpEx, null, $config, $this->db, $user, $phpbb_dispatcher);
+		$this->search = new $class($error, $phpbb_root_path, $phpEx, null, $config, $this->db, $user);
 	}
 
 	public function keywords()
@@ -57,54 +54,6 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				array(1),
 				array(),
 				array(),
-			),
-			array(
-				'baaz*',
-				'all',
-				true,
-				array('\'baaz%\''),
-				array(),
-				array(),
-			),
-			array(
-				'ba*az',
-				'all',
-				true,
-				array('\'ba%az\''),
-				array(),
-				array(),
-			),
-			array(
-				'ba*z',
-				'all',
-				true,
-				array('\'ba%z\''),
-				array(),
-				array(),
-			),
-			array(
-				'baa* baaz*',
-				'all',
-				true,
-				array('\'baa%\'', '\'baaz%\''),
-				array(),
-				array(),
-			),
-			array(
-				'ba*z baa*',
-				'all',
-				true,
-				array('\'ba%z\'', '\'baa%\''),
-				array(),
-				array(),
-			),
-			array(
-				'baaz* commonword',
-				'all',
-				true,
-				array('\'baaz%\''),
-				array(),
-				array('commonword'),
 			),
 			array(
 				'foo bar',

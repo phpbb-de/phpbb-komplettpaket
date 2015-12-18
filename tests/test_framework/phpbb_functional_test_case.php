@@ -11,14 +11,12 @@
 *
 */
 use Symfony\Component\BrowserKit\CookieJar;
+use Behat\Mink\Driver\Goutte\Client;
+use Behat\Mink\Driver\GoutteDriver;
 
-require_once __DIR__ . '/../../phpBB/includes/functions_install.php';
-
-class phpbb_functional_test_case extends phpbb_test_case
+class phpbb_functional_test_case extends phpbb_mink_test_case
 {
-	static protected $client;
 	static protected $cookieJar;
-	static protected $root_url;
 
 	protected $cache = null;
 	protected $db = null;
@@ -36,9 +34,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	*/
 	protected $lang = array();
 
-	static protected $config = array();
 	static protected $already_installed = false;
-	static protected $last_post_timestamp = 0;
 
 	static public function setUpBeforeClass()
 	{
@@ -46,6 +42,24 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		self::$config = phpbb_test_case_helpers::get_test_config();
 		self::$root_url = self::$config['phpbb_functional_url'];
+
+		self::$cookieJar = new CookieJar;
+		self::$client = new Client(array(), null, self::$cookieJar);
+
+		$client_options = array(
+			Guzzle\Http\Client::DISABLE_REDIRECTS	=> true,
+			'curl.options'	=> array(
+				CURLOPT_TIMEOUT	=> 120,
+			),
+		);
+
+		self::$client->setClient(new Guzzle\Http\Client('', $client_options));
+
+		// Reset the curl handle because it is 0 at this point and not a valid
+		// resource
+		self::$client->getClient()->getCurlMulti()->reset(true);
+
+		self::$driver = new GoutteDriver(self::$client);
 
 		// Important: this is used both for installation and by
 		// test cases for querying the tables.
@@ -79,12 +93,6 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		$this->bootstrap();
 
-		self::$cookieJar = new CookieJar;
-		self::$client = new Goutte\Client(array(), null, self::$cookieJar);
-		// Reset the curl handle because it is 0 at this point and not a valid
-		// resource
-		self::$client->getClient()->getCurlMulti()->reset(true);
-
 		// Clear the language array so that things
 		// that were added in other tests are gone
 		$this->lang = array();
@@ -111,13 +119,14 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 	protected function tearDown()
 	{
-		parent::tearDown();
-
 		if ($this->db instanceof \phpbb\db\driver\driver_interface)
 		{
 			// Close the database connections again this test
 			$this->db->sql_close();
 		}
+
+		self::$cookieJar->clear();
+		parent::tearDown();
 	}
 
 	/**
@@ -227,9 +236,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$db = $this->get_db();
 		$db_tools = new \phpbb\db\tools($db);
 
-		$container = new phpbb_mock_container_builder();
 		$migrator = new \phpbb\db\migrator(
-			$container,
 			$config,
 			$db,
 			$db_tools,
@@ -240,9 +247,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 			array(),
 			new \phpbb\db\migration\helper()
 		);
+		$container = new phpbb_mock_container_builder();
 		$container->set('migrator', $migrator);
-		$container->set('dispatcher', new phpbb_mock_event_dispatcher());
-		$user = new \phpbb\user('\phpbb\datetime');
+		$user = new \phpbb\user();
 
 		$extension_manager = new \phpbb\extension\manager(
 			$container,
@@ -259,144 +266,6 @@ class phpbb_functional_test_case extends phpbb_test_case
 		return $extension_manager;
 	}
 
-	static protected function install_board()
-	{
-		global $phpbb_root_path, $phpEx;
-
-		self::recreate_database(self::$config);
-
-		$config_file = $phpbb_root_path . "config.$phpEx";
-		$config_file_dev = $phpbb_root_path . "config_dev.$phpEx";
-		$config_file_test = $phpbb_root_path . "config_test.$phpEx";
-
-		if (file_exists($config_file))
-		{
-			if (!file_exists($config_file_dev))
-			{
-				rename($config_file, $config_file_dev);
-			}
-			else
-			{
-				unlink($config_file);
-			}
-		}
-
-		self::$cookieJar = new CookieJar;
-		self::$client = new Goutte\Client(array(), null, self::$cookieJar);
-		// Set client manually so we can increase the cURL timeout
-		self::$client->setClient(new Guzzle\Http\Client('', array(
-			Guzzle\Http\Client::DISABLE_REDIRECTS	=> true,
-			'curl.options'	=> array(
-				CURLOPT_TIMEOUT	=> 120,
-			),
-		)));
-
-		// Reset the curl handle because it is 0 at this point and not a valid
-		// resource
-		self::$client->getClient()->getCurlMulti()->reset(true);
-
-		$parseURL = parse_url(self::$config['phpbb_functional_url']);
-
-		$crawler = self::request('GET', 'install/index.php?mode=install&language=en');
-		self::assertContains('Welcome to Installation', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form();
-
-		// install/index.php?mode=install&sub=requirements
-		$crawler = self::submit($form);
-		self::assertContains('Installation compatibility', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form();
-
-		// install/index.php?mode=install&sub=database
-		$crawler = self::submit($form);
-		self::assertContains('Database configuration', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form(array(
-			// Installer uses 3.0-style dbms name
-			'dbms'			=> str_replace('phpbb\db\driver\\', '',  self::$config['dbms']),
-			'dbhost'		=> self::$config['dbhost'],
-			'dbport'		=> self::$config['dbport'],
-			'dbname'		=> self::$config['dbname'],
-			'dbuser'		=> self::$config['dbuser'],
-			'dbpasswd'		=> self::$config['dbpasswd'],
-			'table_prefix'	=> self::$config['table_prefix'],
-		));
-
-		// install/index.php?mode=install&sub=database
-		$crawler = self::submit($form);
-		self::assertContains('Successful connection', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form();
-
-		// install/index.php?mode=install&sub=administrator
-		$crawler = self::submit($form);
-		self::assertContains('Administrator configuration', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form(array(
-			'default_lang'	=> 'en',
-			'admin_name'	=> 'admin',
-			'admin_pass1'	=> 'adminadmin',
-			'admin_pass2'	=> 'adminadmin',
-			'board_email'	=> 'nobody@example.com',
-		));
-
-		// install/index.php?mode=install&sub=administrator
-		$crawler = self::submit($form);
-		self::assertContains('Tests passed', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form();
-
-		// We have to skip install/index.php?mode=install&sub=config_file
-		// because that step will create a config.php file if phpBB has the
-		// permission to do so. We have to create the config file on our own
-		// in order to get the DEBUG constants defined.
-		$config_php_data = phpbb_create_config_file_data(self::$config, self::$config['dbms'], true, false, true);
-		$config_created = file_put_contents($config_file, $config_php_data) !== false;
-		if (!$config_created)
-		{
-			self::markTestSkipped("Could not write $config_file file.");
-		}
-
-		// We also have to create a install lock that is normally created by
-		// the installer. The file will be removed by the final step of the
-		// installer.
-		$install_lock_file = $phpbb_root_path . 'cache/install_lock';
-		$lock_created = file_put_contents($install_lock_file, '') !== false;
-		if (!$lock_created)
-		{
-			self::markTestSkipped("Could not create $lock_created file.");
-		}
-		@chmod($install_lock_file, 0666);
-
-		// install/index.php?mode=install&sub=advanced
-		$form_data = $form->getValues();
-		unset($form_data['submit']);
-
-		$crawler = self::request('POST', 'install/index.php?mode=install&sub=advanced', $form_data);
-		self::assertContains('The settings on this page are only necessary to set if you know that you require something different from the default.', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form(array(
-			'email_enable'		=> true,
-			'smtp_delivery'		=> true,
-			'smtp_host'			=> 'nxdomain.phpbb.com',
-			'smtp_auth'			=> 'PLAIN',
-			'smtp_user'			=> 'nxuser',
-			'smtp_pass'			=> 'nxpass',
-			'cookie_secure'		=> false,
-			'force_server_vars'	=> false,
-			'server_protocol'	=> $parseURL['scheme'] . '://',
-			'server_name'		=> 'localhost',
-			'server_port'		=> isset($parseURL['port']) ? (int) $parseURL['port'] : 80,
-			'script_path'		=> $parseURL['path'],
-		));
-
-		// install/index.php?mode=install&sub=create_table
-		$crawler = self::submit($form);
-		self::assertContains('The database tables used by phpBB', $crawler->filter('#main')->text());
-		self::assertContains('have been created and populated with some initial data.', $crawler->filter('#main')->text());
-		$form = $crawler->selectButton('submit')->form();
-
-		// install/index.php?mode=install&sub=final
-		$crawler = self::submit($form);
-		self::assertContains('You have successfully installed', $crawler->text());
-
-		copy($config_file, $config_file_test);
-	}
-
 	public function install_ext($extension)
 	{
 		$this->login();
@@ -410,27 +279,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$form = $crawler->selectButton('Enable')->form();
 		$crawler = self::submit($form);
 		$this->add_lang('acp/extensions');
-
-		$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
-
-		// Wait for extension to be fully enabled
-		while (sizeof($meta_refresh))
-		{
-			preg_match('#url=.+/(adm+.+)#', $meta_refresh->attr('content'), $match);
-			$url = $match[1];
-			$crawler = self::request('POST', $url);
-			$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
-		}
-
 		$this->assertContainsLang('EXTENSION_ENABLE_SUCCESS', $crawler->filter('div.successbox')->text());
 
 		$this->logout();
-	}
-
-	static private function recreate_database($config)
-	{
-		$db_conn_mgr = new phpbb_database_test_connection_manager($config);
-		$db_conn_mgr->recreate_db();
 	}
 
 	/**
@@ -571,10 +422,12 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$cache = new phpbb_mock_null_cache;
 
 		$cache_driver = new \phpbb\cache\driver\null();
-		$phpbb_container = new phpbb_mock_container_builder();
-		$phpbb_container->set('cache.driver', $cache_driver);
-		$phpbb_notifications = new phpbb_mock_notification_manager();
-		$phpbb_container->set('notification_manager', $phpbb_notifications);
+		$phpbb_container = $this->getMock('Symfony\Component\DependencyInjection\ContainerInterface');
+		$phpbb_container
+			->expects($this->any())
+			->method('get')
+			->with('cache.driver')
+			->will($this->returnValue($cache_driver));
 
 		if (!function_exists('utf_clean_string'))
 		{
@@ -611,7 +464,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		$db = $this->get_db();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
+		$user = $this->getMock('\phpbb\user');
 		$auth = $this->getMock('\phpbb\auth\auth');
 
 		$phpbb_log = new \phpbb\log\log($db, $user, $auth, $phpbb_dispatcher, $phpbb_root_path, 'adm/', $phpEx, LOG_TABLE);
@@ -650,7 +503,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		$db = $this->get_db();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$user = $this->getMock('\phpbb\user', array(), array('\phpbb\datetime'));
+		$user = $this->getMock('\phpbb\user');
 		$auth = $this->getMock('\phpbb\auth\auth');
 
 		$phpbb_log = new \phpbb\log\log($db, $user, $auth, $phpbb_dispatcher, $phpbb_root_path, 'adm/', $phpEx, LOG_TABLE);
@@ -854,15 +707,15 @@ class phpbb_functional_test_case extends phpbb_test_case
 	*/
 	static public function assert_response_html($status_code = 200)
 	{
-		// Any output before the doc type means there was an error
-		$content = self::$client->getResponse()->getContent();
-		self::assertNotContains('[phpBB Debug]', $content);
-		self::assertStringStartsWith('<!DOCTYPE', trim($content), 'Output found before DOCTYPE specification.');
-
 		if ($status_code !== false)
 		{
 			self::assert_response_status_code($status_code);
 		}
+
+		// Any output before the doc type means there was an error
+		$content = self::$client->getResponse()->getContent();
+		self::assertNotContains('[phpBB Debug]', $content);
+		self::assertStringStartsWith('<!DOCTYPE', trim($content), 'Output found before DOCTYPE specification.');
 	}
 
 	/*
@@ -875,15 +728,15 @@ class phpbb_functional_test_case extends phpbb_test_case
 	*/
 	static public function assert_response_xml($status_code = 200)
 	{
-		// Any output before the xml opening means there was an error
-		$content = self::$client->getResponse()->getContent();
-		self::assertNotContains('[phpBB Debug]', $content);
-		self::assertStringStartsWith('<?xml', trim($content), 'Output found before XML specification.');
-
 		if ($status_code !== false)
 		{
 			self::assert_response_status_code($status_code);
 		}
+
+		// Any output before the xml opening means there was an error
+		$content = self::$client->getResponse()->getContent();
+		self::assertNotContains('[phpBB Debug]', $content);
+		self::assertStringStartsWith('<?xml', trim($content), 'Output found before XML specification.');
 	}
 
 	/**
@@ -897,7 +750,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	*/
 	static public function assert_response_status_code($status_code = 200)
 	{
-		self::assertEquals($status_code, self::$client->getResponse()->getStatus(), 'HTTP status code does not match');
+		self::assertEquals($status_code, self::$client->getResponse()->getStatus());
 	}
 
 	public function assert_filter($crawler, $expr, $msg = null)
@@ -1044,82 +897,6 @@ class phpbb_functional_test_case extends phpbb_test_case
 	{
 		$this->add_lang('posting');
 
-		$crawler = $this->submit_message($posting_url, $posting_contains, $form_data);
-
-		if ($expected !== '')
-		{
-			if (isset($this->lang[$expected]))
-			{
-				$this->assertContainsLang($expected, $crawler->filter('html')->text());
-			}
-			else
-			{
-				$this->assertContains($expected, $crawler->filter('html')->text());
-			}
-			return null;
-		}
-
-		$url = $crawler->selectLink($form_data['subject'])->link()->getUri();
-
-		return array(
-			'topic_id'	=> $this->get_parameter_from_link($url, 't'),
-			'post_id'	=> $this->get_parameter_from_link($url, 'p'),
-		);
-	}
-
-	/**
-	* Creates a private message
-	*
-	* Be sure to login before creating
-	*
-	* @param string $subject
-	* @param string $message
-	* @param array $to
-	* @param array $additional_form_data Any additional form data to be sent in the request
-	* @return int private_message_id
-	*/
-	public function create_private_message($subject, $message, $to, $additional_form_data = array())
-	{
-		$this->add_lang(array('ucp', 'posting'));
-
-		$posting_url = "ucp.php?i=pm&mode=compose&sid={$this->sid}";
-
-		$form_data = array_merge(array(
-			'subject'		=> $subject,
-			'message'		=> $message,
-			'post'			=> true,
-		), $additional_form_data);
-
-		foreach ($to as $user_id)
-		{
-			$form_data['address_list[u][' . $user_id . ']'] = 'to';
-		}
-
-		$crawler = self::submit_message($posting_url, 'POST_NEW_PM', $form_data);
-
-		$this->assertContains($this->lang('MESSAGE_STORED'), $crawler->filter('html')->text());
-		$url = $crawler->selectLink($this->lang('VIEW_PRIVATE_MESSAGE', '', ''))->link()->getUri();
-
-		return $this->get_parameter_from_link($url, 'p');
-	}
-
-	/**
-	* Helper for submitting a message (post or private message)
-	*
-	* @param string $posting_url
-	* @param string $posting_contains
-	* @param array $form_data
-	* @return \Symfony\Component\DomCrawler\Crawler the crawler object
-	*/
-	protected function submit_message($posting_url, $posting_contains, $form_data)
-	{
-		if (time() == self::$last_post_timestamp)
-		{
-			// Travis is too fast, so we have to wait to not mix up the post/topic order
-			sleep(1);
-		}
-		self::$last_post_timestamp = time();
-
 		$crawler = self::request('GET', $posting_url);
 		$this->assertContains($this->lang($posting_contains), $crawler->filter('html')->text());
 
@@ -1161,7 +938,27 @@ class phpbb_functional_test_case extends phpbb_test_case
 		// I use a request because the form submission method does not allow you to send data that is not
 		// contained in one of the actual form fields that the browser sees (i.e. it ignores "hidden" inputs)
 		// Instead, I send it as a request with the submit button "post" set to true.
-		return self::request('POST', $posting_url, $form_data);
+		$crawler = self::request('POST', $posting_url, $form_data);
+
+		if ($expected !== '')
+		{
+			if (isset($this->lang[$expected]))
+			{
+				$this->assertContainsLang($expected, $crawler->filter('html')->text());
+			}
+			else
+			{
+				$this->assertContains($expected, $crawler->filter('html')->text());
+			}
+			return null;
+		}
+
+		$url = $crawler->selectLink($form_data['subject'])->link()->getUri();
+
+		return array(
+			'topic_id'	=> $this->get_parameter_from_link($url, 't'),
+			'post_id'	=> $this->get_parameter_from_link($url, 'p'),
+		);
 	}
 
 	/**

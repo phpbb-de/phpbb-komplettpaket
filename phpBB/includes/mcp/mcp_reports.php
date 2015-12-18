@@ -36,7 +36,7 @@ class mcp_reports
 	function main($id, $mode)
 	{
 		global $auth, $db, $user, $template, $cache;
-		global $config, $phpbb_root_path, $phpEx, $action, $phpbb_container, $phpbb_dispatcher;
+		global $config, $phpbb_root_path, $phpEx, $action, $phpbb_container;
 
 		include_once($phpbb_root_path . 'includes/functions_posting.' . $phpEx);
 
@@ -73,65 +73,17 @@ class mcp_reports
 
 				// closed reports are accessed by report id
 				$report_id = request_var('r', 0);
-				$sql_ary = array(
-					'SELECT'	=> 'r.post_id, r.user_id, r.report_id, r.report_closed, report_time, r.report_text, r.reported_post_text, r.reported_post_uid, r.reported_post_bitfield, r.reported_post_enable_magic_url, r.reported_post_enable_smilies, r.reported_post_enable_bbcode, rr.reason_title, rr.reason_description, u.username, u.username_clean, u.user_colour',
 
-					'FROM'		=> array(
-						REPORTS_TABLE			=> 'r',
-						REPORTS_REASONS_TABLE	=> 'rr',
-						USERS_TABLE				=> 'u',
-					),
-
-					'WHERE'		=> (($report_id) ? 'r.report_id = ' . $report_id : "r.post_id = $post_id") . '
+				$sql = 'SELECT r.post_id, r.user_id, r.report_id, r.report_closed, report_time, r.report_text, r.reported_post_text, r.reported_post_uid, r.reported_post_bitfield, r.reported_post_enable_magic_url, r.reported_post_enable_smilies, r.reported_post_enable_bbcode, rr.reason_title, rr.reason_description, u.username, u.username_clean, u.user_colour
+					FROM ' . REPORTS_TABLE . ' r, ' . REPORTS_REASONS_TABLE . ' rr, ' . USERS_TABLE . ' u
+					WHERE ' . (($report_id) ? 'r.report_id = ' . $report_id : "r.post_id = $post_id") . '
 						AND rr.reason_id = r.reason_id
 						AND r.user_id = u.user_id
-						AND r.pm_id = 0',
-
-					'ORDER_BY'	=> 'report_closed ASC',
-				);
-
-				/**
-				* Allow changing the query to obtain the user-submitted report.
-				*
-				* @event core.mcp_reports_report_details_query_before
-				* @var	array	sql_ary			The array in the format of the query builder with the query
-				* @var	mixed	forum_id		The forum_id, the number in the f GET parameter
-				* @var	int		post_id			The post_id of the report being viewed (if 0, it is meaningless)
-				* @var	int		report_id		The report_id of the report being viewed
-				* @since 3.1.5-RC1
-				*/
-				$vars = array(
-					'sql_ary',
-					'forum_id',
-					'post_id',
-					'report_id',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.mcp_reports_report_details_query_before', compact($vars)));
-
-				$sql = $db->sql_build_query('SELECT', $sql_ary);
+						AND r.pm_id = 0
+					ORDER BY report_closed ASC';
 				$result = $db->sql_query_limit($sql, 1);
 				$report = $db->sql_fetchrow($result);
 				$db->sql_freeresult($result);
-
-				/**
-				* Allow changing the data obtained from the user-submitted report.
-				*
-				* @event core.mcp_reports_report_details_query_after
-				* @var	array	sql_ary		The array in the format of the query builder with the query that had been executted
-				* @var	mixed	forum_id	The forum_id, the number in the f GET parameter
-				* @var	int		post_id		The post_id of the report being viewed (if 0, it is meaningless)
-				* @var	int		report_id	The report_id of the report being viewed
-				* @var	int		report		The query's resulting row.
-				* @since 3.1.5-RC1
-				*/
-				$vars = array(
-					'sql_ary',
-					'forum_id',
-					'post_id',
-					'report_id',
-					'report',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.mcp_reports_report_details_query_after', compact($vars)));
 
 				if (!$report)
 				{
@@ -140,7 +92,7 @@ class mcp_reports
 
 				$phpbb_notifications = $phpbb_container->get('notification_manager');
 
-				$phpbb_notifications->mark_notifications_read('notification.type.report_post', $post_id, $user->data['user_id']);
+				$phpbb_notifications->mark_notifications_read('report_post', $post_id, $user->data['user_id']);
 
 				if (!$report_id && $report['report_closed'])
 				{
@@ -412,27 +364,6 @@ class mcp_reports
 						AND r.pm_id = 0
 						$limit_time_sql
 					ORDER BY $sort_order_sql";
-
-				/**
-				* Alter sql query to get report id of all reports for requested forum and topic or just forum
-				*
-				* @event core.mcp_reports_get_reports_query_before
-				* @var	string	sql						String with the query to be executed
-				* @var	array	forum_list				List of forums that contain the posts
-				* @var	int		topic_id				topic_id in the page request
-				* @var	string	limit_time_sql			String with the SQL code to limit the time interval of the post (Note: May be empty string)
-				* @var	string	sort_order_sql			String with the ORDER BY SQL code used in this query
-				* @since 3.1.0-RC4
-				*/
-				$vars = array(
-					'sql',
-					'forum_list',
-					'topic_id',
-					'limit_time_sql',
-					'sort_order_sql',
-				);
-				extract($phpbb_dispatcher->trigger_event('core.mcp_reports_get_reports_query_before', compact($vars)));
-
 				$result = $db->sql_query_limit($sql, $config['topics_per_page'], $start);
 
 				$i = 0;
@@ -537,7 +468,6 @@ function close_report($report_id_list, $mode, $action, $pm = false)
 	{
 		$post_id_list[] = $row[$id_column];
 	}
-	$db->sql_freeresult($result);
 	$post_id_list = array_unique($post_id_list);
 
 	if ($pm)
@@ -701,12 +631,12 @@ function close_report($report_id_list, $mode, $action, $pm = false)
 			if ($pm)
 			{
 				add_log('mod', 0, 0, 'LOG_PM_REPORT_' .  strtoupper($action) . 'D', $post_info[$report['pm_id']]['message_subject']);
-				$phpbb_notifications->delete_notifications('notification.type.report_pm', $report['pm_id']);
+				$phpbb_notifications->delete_notifications('report_pm', $report['pm_id']);
 			}
 			else
 			{
 				add_log('mod', $post_info[$report['post_id']]['forum_id'], $post_info[$report['post_id']]['topic_id'], 'LOG_REPORT_' .  strtoupper($action) . 'D', $post_info[$report['post_id']]['post_subject']);
-				$phpbb_notifications->delete_notifications('notification.type.report_post', $report['post_id']);
+				$phpbb_notifications->delete_notifications('report_post', $report['post_id']);
 			}
 		}
 
@@ -724,7 +654,7 @@ function close_report($report_id_list, $mode, $action, $pm = false)
 
 				if ($pm)
 				{
-					$phpbb_notifications->add_notifications('notification.type.report_pm_closed', array_merge($post_info[$post_id], array(
+					$phpbb_notifications->add_notifications('report_pm_closed', array_merge($post_info[$post_id], array(
 						'reporter'			=> $reporter['user_id'],
 						'closer_id'			=> $user->data['user_id'],
 						'from_user_id'		=> $post_info[$post_id]['author_id'],
@@ -732,7 +662,7 @@ function close_report($report_id_list, $mode, $action, $pm = false)
 				}
 				else
 				{
-					$phpbb_notifications->add_notifications('notification.type.report_post_closed', array_merge($post_info[$post_id], array(
+					$phpbb_notifications->add_notifications('report_post_closed', array_merge($post_info[$post_id], array(
 						'reporter'			=> $reporter['user_id'],
 						'closer_id'			=> $user->data['user_id'],
 					)));

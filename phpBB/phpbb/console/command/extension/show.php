@@ -21,7 +21,7 @@ class show extends command
 	{
 		$this
 			->setName('extension:show')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_LIST_EXTENSIONS'))
+			->setDescription('Lists all extensions in the database and on the filesystem.')
 		;
 	}
 
@@ -32,27 +32,27 @@ class show extends command
 
 		if (empty($all))
 		{
-			$output->writeln('<comment>' . $this->user->lang('CLI_EXTENSION_NOT_FOUND') . '</comment>');
+			$output->writeln('<comment>No extensions were found.</comment>');
 			return 3;
 		}
 
 		$enabled = array_keys($this->manager->all_enabled());
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_ENABLED') . $this->user->lang('COLON'), $enabled);
+		$this->print_extension_list($output, 'Enabled', $enabled);
 
 		$output->writeln('');
 
 		$disabled = array_keys($this->manager->all_disabled());
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_DISABLED') . $this->user->lang('COLON'), $disabled);
+		$this->print_extension_list($output, 'Disabled', $disabled);
 
 		$output->writeln('');
 
 		$purged = array_diff($all, $enabled, $disabled);
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_AVAILABLE') . $this->user->lang('COLON'), $purged);
+		$this->print_extension_list($output, 'Available', $purged);
 	}
 
 	protected function print_extension_list(OutputInterface $output, $type, array $extensions)
 	{
-		$output->writeln("<info>$type</info>");
+		$output->writeln("<info>$type:</info>");
 
 		foreach ($extensions as $extension)
 		{

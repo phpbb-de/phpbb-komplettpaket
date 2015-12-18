@@ -208,12 +208,9 @@ class auth
 
 	/**
 	* Get forums with the specified permission setting
+	* if the option is prefixed with !, then the result becomes negated
 	*
-	* @param string $opt The permission name to lookup. If prefixed with !, the result is negated.
-	* @param bool	$clean set to true if only values needs to be returned which are set/unset
-	*
-	* @return array Contains the forum ids with the specified permission set to true.
-					This is a nested array: array => forum_id => permission => true
+	* @param bool $clean set to true if only values needs to be returned which are set/unset
 	*/
 	function acl_getf($opt, $clean = false)
 	{
@@ -927,11 +924,11 @@ class auth
 	*/
 	function login($username, $password, $autologin = false, $viewonline = 1, $admin = 0)
 	{
-		global $db, $user, $phpbb_root_path, $phpEx, $phpbb_container;
+		global $config, $db, $user, $phpbb_root_path, $phpEx, $phpbb_container;
 
-		$provider_collection = $phpbb_container->get('auth.provider_collection');
+		$method = trim(basename($config['auth_method']));
 
-		$provider = $provider_collection->get_provider();
+		$provider = $phpbb_container->get('auth.provider.' . $method);
 		if ($provider)
 		{
 			$login = $provider->login($username, $password);
