@@ -5,7 +5,7 @@
 !/phpBB/cache/index.html
 /phpBB/composer.phar
 /phpBB/config*.php*
-#/phpBB/ext/*
+/phpBB/ext/*
 /phpBB/files/*
 /phpBB/images/avatars/gallery/*
 /phpBB/images/avatars/upload/*
