@@ -2,16 +2,16 @@
 
 <project name="phpBB" description="The phpBB forum software" default="all" basedir="../">
 	<!-- a few settings for the build -->
-	<property name="newversion" value="3.1.11" />
-	<property name="prevversion" value="3.1.10" />
-	<property name="olderversions" value="3.0.14, 3.1.0, 3.1.1, 3.1.2, 3.1.3, 3.1.4, 3.1.5, 3.1.6, 3.1.7, 3.1.7-pl1, 3.1.8, 3.1.9, 3.1.11-RC1" />
+	<property name="newversion" value="3.1.11-deutsch" />
+	<property name="prevversion" value="3.1.10-deutsch" />
+	<property name="olderversions" value="3.0.12-deutsch, 3.0.13-deutsch, 3.0.13-PL1-deutsch, 3.0.14-deutsch, 3.1.0-deutsch, 3.1.1-deutsch, 3.1.2-deutsch, 3.1.3-deutsch, 3.1.4-deutsch, 3.1.5-deutsch, 3.1.6-deutsch, 3.1.7-deutsch, 3.1.7-pl1-deutsch, 3.1.8-deutsch, 3.1.9-deutsch" />
 	<!-- no configuration should be needed beyond this point -->
 
 	<property name="oldversions" value="${olderversions}, ${prevversion}" />
 	<property name="versions" value="${oldversions}, ${newversion}" />
 
 	<!-- These are the main targets which you will probably want to use -->
-	<target name="all" depends="clean,prepare,composer,test,docs,package" />
+	<target name="all" depends="clean,prepare,composer,package" />
 	<target name="build" depends="clean,prepare,composer,test,docs" />
 
 	<target name="prepare">
