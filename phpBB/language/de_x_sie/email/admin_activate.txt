@@ -1,0 +1,13 @@
+Subject: Benutzerkonto aktivieren
+
+Guten Tag,
+
+das Benutzerkonto von „{USERNAME}“ wurde deaktiviert oder neu erstellt. Sie sollten ggf. die Angaben des Benutzers prüfen und das Konto entsprechend behandeln:
+
+Sie können das Profil des Benutzers betrachten, wenn Sie folgenden Link aufrufen:
+{U_USER_DETAILS}
+
+Um das Benutzerkonto zu aktivieren, müssen Sie folgenden Link aufrufen:
+{U_ACTIVATE}
+
+{EMAIL_SIG}
