@@ -2,16 +2,16 @@
 
 <project name="phpBB" description="The phpBB forum software" default="all" basedir="../">
 	<!-- a few settings for the build -->
-	<property name="newversion" value="3.3.19" />
-	<property name="prevversion" value="3.3.18" />
-	<property name="olderversions" value="3.1.12, 3.2.11, 3.3.17" />
+	<property name="newversion" value="3.3.19-deutsch" />
+	<property name="prevversion" value="3.3.18-deutsch" />
+	<property name="olderversions" value="3.3.0-deutsch, 3.3.1-deutsch, 3.3.2-deutsch, 3.3.3-deutsch, 3.3.4-deutsch, 3.3.5-deutsch, 3.3.6-deutsch, 3.3.7-deutsch, 3.3.8-deutsch, 3.3.9-deutsch, 3.3.10-deutsch, 3.3.11-deutsch, 3.3.12-deutsch, 3.3.13-deutsch, 3.3.14-deutsch, 3.3.15-deutsch, 3.3.16-deutsch, 3.3.17-deutsch" />
 	<!-- no configuration should be needed beyond this point -->
 
 	<property name="oldversions" value="${olderversions}, ${prevversion}" />
 	<property name="versions" value="${oldversions}, ${newversion}" />
 
 	<!-- These are the main targets which you will probably want to use -->
-	<target name="all" depends="clean,prepare,composer,test,docs,package" />
+	<target name="all" depends="clean,prepare,composer,package" />
 	<target name="build" depends="clean,prepare,composer,test,docs" />
 
 	<target name="prepare">
@@ -340,7 +340,10 @@
 			<then>
 				<exec dir="${dir}/ext" command="mkdir phpbb" passthru="true" />
 
+				<exec dir="${dir}/ext/phpbb/viglink" command="mv language ../tmp_language" passthru="true" />
 				<exec dir="${dir}/ext/phpbb" command="git clone https://github.com/phpbb-extensions/viglink.git viglink" passthru="true" checkreturn="true" />
+				<exec dir="${dir}/ext/phpbb/viglink" command="mv ../tmp_language/* language" passthru="true" />
+				<exec dir="${dir}/ext/phpbb" command="rm -r tmp_language" passthru="true" />
 				<if>
 					<equals arg1="${revision}" arg2="HEAD" trim="true" />
 					<then>
